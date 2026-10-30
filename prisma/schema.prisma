@@ -1,0 +1,306 @@
+// ProServ — schema do banco (Prisma ORM 7)
+// Convenções:
+//  - dinheiro em Decimal(14,2); custos unitários em Decimal(14,4); nunca Float
+//  - datas em UTC; exibição em America/Sao_Paulo
+//  - Lucro/Prejuízo vem SEMPRE da soma de LedgerEntry (nunca é armazenado)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql" // URL definida em prisma.config.ts
+}
+
+// ─────────────────────────────────────────────────────────────
+// Enums de domínio
+// ─────────────────────────────────────────────────────────────
+
+enum FieldType {
+  TEXT
+  NUMBER
+  DATE
+  BOOLEAN
+  SELECT
+}
+
+enum StockMovementType {
+  ENTRADA
+  SAIDA_VENDA
+  AJUSTE
+  DEVOLUCAO
+}
+
+enum SaleStatus {
+  ABERTA
+  CONCLUIDA
+  CANCELADA
+}
+
+enum AppointmentStatus {
+  AGENDADO
+  EM_ANDAMENTO
+  CONCLUIDO
+  CANCELADO
+}
+
+enum LedgerKind {
+  RECEITA_PRODUTO
+  RECEITA_SERVICO
+  CMV
+  DESPESA
+  ESTORNO
+}
+
+enum DashboardFocus {
+  PRODUTOS
+  SERVICOS
+}
+
+// ─────────────────────────────────────────────────────────────
+// Autenticação (tabelas do Better Auth + plugin admin)
+// `role` é string porque o plugin admin aceita múltiplos cargos
+// separados por vírgula. Valores: admin | gerente | vendedor | prestador
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id             String          @id
+  name           String
+  email          String          @unique
+  emailVerified  Boolean         @default(false)
+  image          String?
+  role           String          @default("vendedor")
+  banned         Boolean?        @default(false)
+  banReason      String?
+  banExpires     DateTime?
+  dashboardFocus DashboardFocus? // visão padrão do dashboard escolhida pelo usuário
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  sessions     Session[]
+  accounts     Account[]
+  sales        Sale[]
+  appointments Appointment[]     @relation("Provider")
+  tablePrefs   TablePreference[]
+
+  @@map("user")
+}
+
+model Session {
+  id             String   @id
+  expiresAt      DateTime
+  token          String   @unique
+  ipAddress      String?
+  userAgent      String?
+  impersonatedBy String?
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Produtos e campos personalizados
+// ─────────────────────────────────────────────────────────────
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  products Product[]
+}
+
+model Product {
+  id           String    @id @default(cuid())
+  sku          String    @unique
+  name         String
+  categoryId   String?
+  category     Category? @relation(fields: [categoryId], references: [id])
+  salePrice    Decimal   @db.Decimal(14, 2)
+  avgCost      Decimal   @default(0) @db.Decimal(14, 4) // custo médio ponderado
+  stockQty     Decimal   @default(0) @db.Decimal(14, 3)
+  minStock     Decimal?  @db.Decimal(14, 3)
+  customFields Json      @default("{}") // valores: { "<key>": valor }
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  movements StockMovement[]
+  saleItems SaleItem[]
+
+  @@index([name])
+}
+
+/// Define quais campos personalizados existem. Criar um campo novo é um INSERT aqui,
+/// sem migração. Os valores ficam em Product.customFields.
+model CustomFieldDefinition {
+  id               String    @id @default(cuid())
+  entity           String    @default("product")
+  key              String
+  label            String
+  type             FieldType
+  options          Json? // opções de SELECT
+  required         Boolean   @default(false)
+  visibleByDefault Boolean   @default(true)
+  position         Int       @default(0)
+  archivedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@unique([entity, key])
+}
+
+/// Estado da tabela por usuário (colunas visíveis, ordem, largura).
+model TablePreference {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tableKey String
+  state    Json
+
+  @@unique([userId, tableKey])
+}
+
+model StockMovement {
+  id          String            @id @default(cuid())
+  productId   String
+  product     Product           @relation(fields: [productId], references: [id])
+  type        StockMovementType
+  quantity    Decimal           @db.Decimal(14, 3) // positivo entra, negativo sai
+  unitCost    Decimal           @db.Decimal(14, 4)
+  saleId      String?
+  note        String?
+  createdById String
+  createdAt   DateTime          @default(now())
+
+  @@index([productId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Vendas
+// ─────────────────────────────────────────────────────────────
+
+model Sale {
+  id            String     @id @default(cuid())
+  number        Int        @unique @default(autoincrement())
+  sellerId      String
+  seller        User       @relation(fields: [sellerId], references: [id])
+  status        SaleStatus @default(CONCLUIDA)
+  discount      Decimal    @default(0) @db.Decimal(14, 2)
+  total         Decimal    @db.Decimal(14, 2)
+  paymentMethod String
+  createdAt     DateTime   @default(now())
+  items         SaleItem[]
+
+  @@index([createdAt])
+}
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Decimal @db.Decimal(14, 3)
+  unitPrice Decimal @db.Decimal(14, 2)
+  unitCost  Decimal @db.Decimal(14, 4) // snapshot do custo médio no momento da venda
+}
+
+// ─────────────────────────────────────────────────────────────
+// Serviços e agenda
+// ─────────────────────────────────────────────────────────────
+
+model Customer {
+  id           String        @id @default(cuid())
+  name         String
+  phone        String?
+  email        String?
+  createdAt    DateTime      @default(now())
+  appointments Appointment[]
+
+  @@index([name])
+}
+
+model Service {
+  id            String        @id @default(cuid())
+  name          String
+  description   String?
+  price         Decimal       @db.Decimal(14, 2)
+  estimatedCost Decimal       @default(0) @db.Decimal(14, 2) // insumos/comissão
+  durationMin   Int
+  active        Boolean       @default(true)
+  appointments  Appointment[]
+}
+
+model Appointment {
+  id           String            @id @default(cuid())
+  serviceId    String
+  service      Service           @relation(fields: [serviceId], references: [id])
+  providerId   String
+  provider     User              @relation("Provider", fields: [providerId], references: [id])
+  customerId   String
+  customer     Customer          @relation(fields: [customerId], references: [id])
+  startsAt     DateTime
+  endsAt       DateTime
+  status       AppointmentStatus @default(AGENDADO)
+  chargedPrice Decimal?          @db.Decimal(14, 2)
+  notes        String?
+
+  @@index([startsAt])
+  @@index([providerId, startsAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Financeiro — livro-razão
+// ─────────────────────────────────────────────────────────────
+
+model LedgerEntry {
+  id              String     @id @default(cuid())
+  kind            LedgerKind
+  amount          Decimal    @db.Decimal(14, 2) // receita +, custo/despesa -
+  occurredAt      DateTime
+  description     String
+  category        String?
+  saleId          String?
+  appointmentId   String?
+  stockMovementId String?
+  createdById     String
+  createdAt       DateTime   @default(now())
+
+  @@index([occurredAt])
+  @@index([kind, occurredAt])
+}
