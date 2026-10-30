@@ -2,37 +2,32 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { NavSection } from "@/lib/nav";
 import { NAV } from "@/lib/nav";
+import { SIDEBAR_COOKIE } from "@/lib/ui-prefs";
 import { cn } from "@/lib/utils";
-
-const STORAGE_KEY = "proserv:sidebar-collapsed";
 
 /**
  * Recebe apenas os hrefs permitidos (calculados no servidor) e reconstrói
  * os itens a partir do NAV — ícones não podem cruzar a fronteira servidor/cliente.
+ * O estado recolhido vem de um cookie lido no servidor, então não há "pulo" ao carregar.
  */
-export function Sidebar({ allowedHrefs }: { allowedHrefs: string[] }) {
+export function Sidebar({
+  allowedHrefs,
+  initialCollapsed,
+}: {
+  allowedHrefs: string[];
+  initialCollapsed: boolean;
+}) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-
-  useEffect(() => {
-    try {
-      setCollapsed(localStorage.getItem(STORAGE_KEY) === "1");
-    } catch {
-      /* armazenamento indisponível: mantém expandido */
-    }
-  }, []);
+  const [collapsed, setCollapsed] = useState(initialCollapsed);
 
   function toggle() {
-    setCollapsed((c) => {
-      try {
-        localStorage.setItem(STORAGE_KEY, c ? "0" : "1");
-      } catch {}
-      return !c;
-    });
+    const next = !collapsed;
+    setCollapsed(next);
+    document.cookie = `${SIDEBAR_COOKIE}=${next ? "1" : "0"}; path=/; max-age=31536000; samesite=lax`;
   }
 
   const allowed = new Set(allowedHrefs);

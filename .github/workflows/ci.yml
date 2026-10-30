@@ -34,6 +34,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # npm 10 (que vem com o Node 22) tem um bug ao resolver peers opcionais do vitest
+      - run: npm install -g npm@11
       - run: npm ci
       - run: npx prisma generate
       - run: npx prisma migrate deploy
