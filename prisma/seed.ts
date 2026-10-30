@@ -19,13 +19,12 @@ const USERS = [
 ] as const;
 
 async function upsertUser(u: (typeof USERS)[number], passwordHash: string) {
-  const ctx = await auth.$context;
   const existing = await prisma.user.findUnique({ where: { email: u.email } });
   if (existing) {
     await prisma.user.update({ where: { id: existing.id }, data: { role: u.role, name: u.name } });
     return existing.id;
   }
-  const id = ctx.generateId({ model: "user" }) || crypto.randomUUID();
+  const id = crypto.randomUUID();
   await prisma.user.create({
     data: {
       id,
@@ -35,7 +34,7 @@ async function upsertUser(u: (typeof USERS)[number], passwordHash: string) {
       role: u.role,
       accounts: {
         create: {
-          id: ctx.generateId({ model: "account" }) || crypto.randomUUID(),
+          id: crypto.randomUUID(),
           accountId: id,
           providerId: "credential",
           password: passwordHash,
