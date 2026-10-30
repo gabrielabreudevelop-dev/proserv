@@ -38,7 +38,11 @@ export function LoginForm() {
     });
 
     if (error) {
-      setError(ERRORS[error.code ?? ""] ?? "Não foi possível entrar. Tente novamente.");
+      const message =
+        error.status === 429
+          ? "Muitas tentativas seguidas. Aguarde alguns segundos e tente de novo."
+          : (ERRORS[error.code ?? ""] ?? "Não foi possível entrar. Tente novamente.");
+      setError(message);
       setPending(false);
       return;
     }
