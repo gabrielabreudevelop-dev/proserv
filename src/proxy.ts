@@ -16,14 +16,13 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (hasSession && pathname === "/login") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
+  // Não redirecionar /login → /dashboard só porque existe um cookie: o cookie pode ser de
+  // uma sessão já encerrada (expirada, senha trocada, usuário bloqueado), o que geraria um
+  // loop login ↔ dashboard. Quem decide é a página de login, validando a sessão de verdade.
   return NextResponse.next();
 }
 
 export const config = {
   // Tudo, exceto API de auth, assets do Next e arquivos estáticos.
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|ico)$).*)"],
+  matcher: ["/((?!api/auth|api/health|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|ico)$).*)"],
 };

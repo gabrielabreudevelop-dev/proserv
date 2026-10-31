@@ -1,5 +1,6 @@
 import {
   BadgeDollarSign,
+  ScrollText,
   CalendarDays,
   LayoutDashboard,
   Package,
@@ -51,6 +52,7 @@ export const NAV: NavSection[] = [
     items: [
       { href: "/financeiro", label: "Financeiro", icon: BadgeDollarSign, anyOf: [{ resource: "financeiro", action: "ver" }] },
       { href: "/config/usuarios", label: "Usuários", icon: Users, adminOnly: true },
+      { href: "/config/auditoria", label: "Auditoria", icon: ScrollText, adminOnly: true },
     ],
   },
 ];

@@ -13,6 +13,8 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { DomainError } from "./errors";
+import { writeAudit } from "./audit";
+import { formatBRL } from "@/lib/format";
 
 type Tx = Prisma.TransactionClient;
 type DecimalValue = string | number | Prisma.Decimal;
@@ -70,6 +72,13 @@ export async function applyStockEntry(tx: Tx, input: EntryInput) {
       ...(input.at ? { createdAt: input.at } : {}),
     },
   });
+  await writeAudit(tx, {
+    actorId: input.userId,
+    action: "estoque.entrada",
+    entity: "Product",
+    entityId: p.id,
+    summary: `Entrada de ${quantity.toString()} un. de "${p.name}" a ${formatBRL(unitCost.toString())} (custo médio ${formatBRL(D(p.avgCost).toFixed(2))} → ${formatBRL(avgCost.toFixed(2))})`,
+  });
   return { product, movement };
 }
 
@@ -125,6 +134,13 @@ export async function registerStockAdjustment(input: AdjustmentInput) {
         });
       }
     }
+    await writeAudit(tx, {
+      actorId: input.userId,
+      action: "estoque.ajuste",
+      entity: "Product",
+      entityId: p.id,
+      summary: `Ajustou o estoque de "${p.name}": ${delta.gt(0) ? "+" : ""}${delta.toString()} un. (${note})${ledgerEntry ? ` · despesa de ${formatBRL(ledgerEntry.amount.abs().toString())}` : ""}`,
+    });
     return { product, movement, ledgerEntry };
   });
 }

@@ -13,6 +13,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { PAYMENT_METHODS, REVERSAL_CATEGORY, type PaymentMethod } from "@/lib/finance-shared";
 import { DomainError } from "./errors";
+import { writeAudit } from "./audit";
+import { formatBRL } from "@/lib/format";
 
 type Tx = Prisma.TransactionClient;
 const D = (v: string | number | Prisma.Decimal) => new Prisma.Decimal(v);
@@ -169,6 +171,13 @@ export async function completeAppointment({
         data: { kind: "DESPESA", amount: cost.neg(), occurredAt, description: `Insumos/comissão: ${description}`, category: SERVICE_COST_CATEGORY, appointmentId: a.id, createdById: actor.id },
       });
     }
+    await writeAudit(tx, {
+      actorId: actor.id,
+      action: "atendimento.concluir",
+      entity: "Appointment",
+      entityId: a.id,
+      summary: `Concluiu ${description}: cobrado ${formatBRL(price.toString())} (${PAYMENT_METHODS[paymentMethod]})${price.eq(a.service.price) ? "" : ` · tabela ${formatBRL(a.service.price.toString())}`}`,
+    });
     return tx.appointment.update({
       where: { id },
       data: { status: "CONCLUIDO", chargedPrice: price, paymentMethod, completedAt: now },
@@ -204,6 +213,13 @@ export async function cancelAppointment({ id, reason, actor, now = new Date() }:
         });
       }
     }
+    await writeAudit(tx, {
+      actorId: actor.id,
+      action: "atendimento.cancelar",
+      entity: "Appointment",
+      entityId: id,
+      summary: `Cancelou ${a.service.name} — ${a.customer.name}${a.status === "CONCLUIDO" ? " (concluído, valores estornados)" : ""}: ${reason.trim()}`,
+    });
     return tx.appointment.update({ where: { id }, data: { status: "CANCELADO", cancelledAt: now, cancelReason: reason.trim() } });
   });
 }

@@ -4,6 +4,7 @@ import { buildCustomFieldsSchema, mergeCustomValues, type CustomValues } from "@
 import { listFieldDefs } from "./custom-fields";
 import { DomainError } from "./errors";
 import { applyStockEntry } from "./stock";
+import { diff, type Changes } from "./audit";
 
 export type ProductRow = {
   id: string;
@@ -115,15 +116,17 @@ export async function createProduct(input: NewProductInput, userId: string) {
   }
 }
 
-export async function updateProduct(id: string, input: ProductInput) {
-  const current = await prisma.product.findUnique({ where: { id } });
+/** Atualiza e devolve o que mudou ({ campo: [antes, depois] }) para a auditoria. */
+export async function updateProduct(id: string, input: ProductInput): Promise<{ name: string; changes: Changes }> {
+  const current = await prisma.product.findUnique({ where: { id }, include: { category: { select: { name: true } } } });
   if (!current) throw new DomainError("Produto não encontrado.");
   const { defs, values } = await validateCustom(input.customFields);
   const sku = input.sku.trim().toUpperCase();
   try {
-    return await prisma.$transaction(async (tx) =>
+    const updated = await prisma.$transaction(async (tx) =>
       tx.product.update({
         where: { id },
+        include: { category: { select: { name: true } } },
         data: {
           sku,
           name: input.name.trim(),
@@ -134,11 +137,21 @@ export async function updateProduct(id: string, input: ProductInput) {
         },
       }),
     );
+    const labelOf = Object.fromEntries(defs.map((d) => [d.key, d.label]));
+    const snapshot = (p: typeof current) => ({
+      SKU: p.sku,
+      Nome: p.name,
+      Categoria: p.category?.name ?? null,
+      "Preço de venda": p.salePrice.toFixed(2),
+      "Estoque mínimo": p.minStock?.toString() ?? null,
+      ...Object.fromEntries(Object.entries((p.customFields ?? {}) as CustomValues).map(([k, v]) => [labelOf[k] ?? k, v])),
+    });
+    return { name: updated.name, changes: diff(snapshot(current), snapshot(updated)) };
   } catch (e) {
     rethrowUnique(e, sku);
   }
 }
 
 export async function setProductActive(id: string, active: boolean) {
-  return prisma.product.update({ where: { id }, data: { active } });
+  return prisma.product.update({ where: { id }, data: { active }, select: { id: true, name: true, sku: true } });
 }

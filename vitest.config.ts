@@ -14,6 +14,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    exclude: ["e2e/**", "node_modules/**"],
     env: { DATABASE_URL: TEST_DATABASE_URL },
     // Os testes de integração compartilham o banco: rodam um arquivo por vez.
     fileParallelism: false,

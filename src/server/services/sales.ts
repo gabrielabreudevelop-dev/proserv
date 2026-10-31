@@ -15,6 +15,8 @@ import { prisma } from "@/lib/db";
 import { PAYMENT_METHODS, REVERSAL_CATEGORY, type PaymentMethod } from "@/lib/finance-shared";
 import { DomainError } from "./errors";
 import { nextAverageCost } from "./stock";
+import { writeAudit } from "./audit";
+import { formatBRL } from "@/lib/format";
 
 const D = (v: string | number | Prisma.Decimal) => new Prisma.Decimal(v);
 
@@ -107,6 +109,13 @@ export async function createSale(input: NewSaleInput) {
         data: { kind: "CMV", amount: cmv.neg(), occurredAt: at, description, saleId: sale.id, createdById: input.sellerId },
       });
     }
+    await writeAudit(tx, {
+      actorId: input.sellerId,
+      action: "venda.registrar",
+      entity: "Sale",
+      entityId: sale.id,
+      summary: `Registrou a venda nº ${sale.number}: ${lines.map((l) => `${l.qty.toString()}× ${l.p.name}`).join(", ")} · total ${formatBRL(total.toString())}${discount.gt(0) ? ` (desconto ${formatBRL(discount.toString())})` : ""}`,
+    });
     return { sale, cmv };
   });
 }
@@ -152,6 +161,13 @@ export async function cancelSale({ saleId, userId, reason, at }: { saleId: strin
       });
     }
 
+    await writeAudit(tx, {
+      actorId: userId,
+      action: "venda.cancelar",
+      entity: "Sale",
+      entityId: saleId,
+      summary: `Cancelou a venda nº ${sale.number} (${formatBRL(sale.total.toString())}): ${reason.trim()}`,
+    });
     return tx.sale.update({
       where: { id: saleId },
       data: { status: "CANCELADA", cancelledAt: when, cancelledById: userId, cancelReason: reason.trim() },

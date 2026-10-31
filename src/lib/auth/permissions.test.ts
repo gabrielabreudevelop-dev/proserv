@@ -48,7 +48,7 @@ describe("can()", () => {
 describe("menu por cargo", () => {
   it("cada cargo vê só o seu menu", () => {
     expect(hrefs("admin")).toEqual([
-      "/dashboard", "/produtos", "/vendas", "/servicos", "/agenda", "/financeiro", "/config/usuarios",
+      "/dashboard", "/produtos", "/vendas", "/servicos", "/agenda", "/financeiro", "/config/usuarios", "/config/auditoria",
     ]);
     expect(hrefs("gerente")).toEqual(["/dashboard", "/produtos", "/vendas", "/servicos", "/agenda", "/financeiro"]);
     expect(hrefs("vendedor")).toEqual(["/dashboard", "/produtos", "/vendas"]);

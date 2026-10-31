@@ -5,7 +5,8 @@ import { z } from "zod";
 import { createProduct, setProductActive, updateProduct } from "@/server/services/products";
 import { listMovements, registerStockAdjustment, registerStockEntry, ADJUSTMENT_REASONS, type AdjustmentReason } from "@/server/services/stock";
 import { saveTablePref, tableStateSchema } from "@/server/services/table-prefs";
-import { decimalField, guardedAction, optionalDecimal } from "./result";
+import { auditAfter, decimalField, guardedAction, optionalDecimal } from "./result";
+import { formatBRL } from "@/lib/format";
 import { DomainError } from "@/server/services/errors";
 import { can } from "@/lib/auth/permissions";
 
@@ -36,22 +37,32 @@ export async function createProductAction(input: unknown) {
       throw new DomainError("Informe o custo unitário do estoque inicial.", { initialCost: "Obrigatório com estoque inicial" });
     }
     const product = await createProduct(data, session.user.id);
+    await auditAfter(session, {
+      action: "produto.criar",
+      entity: "Product",
+      entityId: product!.id,
+      summary: `Cadastrou o produto ${product!.sku} · "${product!.name}" a ${formatBRL(data.salePrice)}`,
+    });
     revalidatePath(PATH);
     return { id: product!.id };
   });
 }
 
 export async function updateProductAction(id: string, input: unknown) {
-  return guardedAction({ resource: "produto", action: "editar" }, productSchema, input, async (data) => {
-    await updateProduct(id, data);
+  return guardedAction({ resource: "produto", action: "editar" }, productSchema, input, async (data, session) => {
+    const { name, changes } = await updateProduct(id, data);
+    if (Object.keys(changes).length) {
+      await auditAfter(session, { action: "produto.editar", entity: "Product", entityId: id, summary: `Editou "${name}": ${Object.keys(changes).join(", ")}`, changes });
+    }
     revalidatePath(PATH);
     return undefined;
   });
 }
 
 export async function setProductActiveAction(id: string, active: boolean) {
-  return guardedAction({ resource: "produto", action: "editar" }, z.boolean(), active, async (value) => {
-    await setProductActive(id, value);
+  return guardedAction({ resource: "produto", action: "editar" }, z.boolean(), active, async (value, session) => {
+    const p = await setProductActive(id, value);
+    await auditAfter(session, { action: value ? "produto.reativar" : "produto.desativar", entity: "Product", entityId: id, summary: `${value ? "Reativou" : "Desativou"} o produto ${p.sku} · "${p.name}"` });
     revalidatePath(PATH);
     return undefined;
   });

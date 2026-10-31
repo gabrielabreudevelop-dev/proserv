@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { FIELD_TYPES, parseOptions } from "@/lib/custom-fields";
+import { FIELD_TYPE_LABELS, FIELD_TYPES, parseOptions } from "@/lib/custom-fields";
 import { createFieldDef, moveFieldDef, setFieldArchived, updateFieldDef } from "@/server/services/custom-fields";
-import { guardedAction } from "./result";
+import { auditAfter, guardedAction } from "./result";
 
 const PERM = { resource: "campo", action: "gerenciar" } as const;
 
@@ -24,24 +24,27 @@ function revalidate() {
 }
 
 export async function createFieldAction(input: unknown) {
-  return guardedAction(PERM, baseSchema.extend({ type: z.enum(FIELD_TYPES) }), input, async (data) => {
+  return guardedAction(PERM, baseSchema.extend({ type: z.enum(FIELD_TYPES) }), input, async (data, session) => {
     const def = await createFieldDef(data);
+    await auditAfter(session, { action: "campo.criar", entity: "CustomFieldDefinition", entityId: def.id, summary: `Criou o campo "${def.label}" (${FIELD_TYPE_LABELS[def.type]})` });
     revalidate();
     return def;
   });
 }
 
 export async function updateFieldAction(id: string, input: unknown) {
-  return guardedAction(PERM, baseSchema, input, async (data) => {
+  return guardedAction(PERM, baseSchema, input, async (data, session) => {
     const def = await updateFieldDef(id, data);
+    await auditAfter(session, { action: "campo.editar", entity: "CustomFieldDefinition", entityId: id, summary: `Editou o campo "${def.label}"` });
     revalidate();
     return def;
   });
 }
 
 export async function archiveFieldAction(id: string, archived: boolean) {
-  return guardedAction(PERM, z.boolean(), archived, async (value) => {
-    await setFieldArchived(id, value);
+  return guardedAction(PERM, z.boolean(), archived, async (value, session) => {
+    const def = await setFieldArchived(id, value);
+    await auditAfter(session, { action: value ? "campo.arquivar" : "campo.restaurar", entity: "CustomFieldDefinition", entityId: id, summary: `${value ? "Arquivou" : "Restaurou"} o campo "${def.label}"` });
     revalidate();
     return undefined;
   });

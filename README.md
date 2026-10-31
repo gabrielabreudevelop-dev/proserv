@@ -15,8 +15,8 @@ npx prisma generate
 npx prisma migrate dev        # cria as tabelas
 npx prisma db seed            # usuários, 24 produtos, vendas e despesas de exemplo
 
-# banco de testes (uma vez)
-createdb proserv_test
+# bancos de teste (uma vez)
+createdb proserv_test && createdb proserv_e2e
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/proserv_test npx prisma migrate deploy
 npm run dev
 ```
@@ -39,6 +39,8 @@ Acesse http://localhost:3000 e entre com um dos usuários do seed (senha `proser
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | testes unitários e de integração (Vitest; usa o banco `proserv_test`) |
+| `npm run test:e2e` | testes de navegador (Playwright; recria o banco `proserv_e2e`; rode `npm run build` antes) |
+| `npm run create-admin -- --email … --name "…"` | cria o primeiro administrador (ou `--reset` para recuperar o acesso) |
 | `npx prisma studio` | inspecionar o banco |
 
 ## Controle de acesso
@@ -75,6 +77,14 @@ As permissões vivem em um único arquivo, `src/lib/auth/permissions.ts`, usado 
 - **Prestador** vê e conclui só os próprios atendimentos — o filtro é aplicado na consulta, e a URL `?prestador=` é ignorada para ele.
 - **Dashboard**: visão Produtos (faturamento e vendas de 7 dias com comparação, mais vendidos, estoque baixo, lucro do mês) e visão Serviços (faturamento do dia e da semana, agenda de hoje, pendentes, taxa de conclusão). Cada um escolhe a visão padrão. Vendedor e prestador veem só os próprios números, e o prestador não vê valores.
 
+## Administração e qualidade (Fase 4)
+
+- **Usuários** (`/config/usuarios`, só admin): criar com senha provisória, combinar cargos, bloquear (encerra as sessões na hora), gerar nova senha. Ninguém remove o próprio cargo de admin nem bloqueia a si mesmo, e o sistema nunca fica sem administrador ativo. Cada pessoa troca a própria senha em **Minha conta**.
+- **Auditoria** (`/config/auditoria`, só admin): quem fez o quê e quando, com antes → depois nas edições. Vendas, cancelamentos, estoque, despesas e atendimentos gravam a auditoria na mesma transação; configurações gravam logo após o sucesso. O registro só cresce.
+- **Celular**: menu lateral vira botão de menu abaixo de 768 px.
+- **Testes de navegador**: `e2e/` com Playwright Test (55 testes, uma pasta por fase), rodando no CI a cada push contra o build de produção.
+- **Produção preparada, não publicada**: cabeçalhos de segurança (CSP, HSTS), `/api/health`, `Dockerfile`, Dependabot e guia em [docs/deploy.md](docs/deploy.md).
+
 ## Estrutura
 
 ```text
@@ -90,6 +100,9 @@ src/
   server/actions/          Server Actions: permissão + validação + serviço
   lib/db.ts                Prisma Client (adapter pg)
   generated/prisma/        cliente gerado (não versionado)
+e2e/                       testes de navegador (Playwright)
+scripts/create-admin.ts    primeiro administrador em produção
+docs/                      conferência financeira, deploy e pendências
 prisma/schema.prisma       modelo de dados
 prisma.config.ts           configuração do Prisma CLI
 ```
@@ -100,4 +113,5 @@ prisma.config.ts           configuração do Prisma CLI
 - [x] Fase 1 — Produtos: CRUD, campos personalizados, tabela dinâmica, estoque
 - [x] Fase 2 — Vendas e financeiro: PDV, livro-razão, CMV, DRE
 - [x] Fase 3 — Serviços, agenda e dashboard
-- [ ] Fase 4 — Lançamento: E2E, auditoria, deploy
+- [x] Fase 4 — Auditoria, usuários, celular, testes de navegador no CI, produção preparada
+- [ ] Publicação — em aberto até resolver as [pendências](docs/pendencias.md)

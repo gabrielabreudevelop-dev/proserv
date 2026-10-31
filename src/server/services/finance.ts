@@ -14,6 +14,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { REVERSAL_CATEGORY, type LedgerKindName } from "@/lib/finance-shared";
 import { DomainError } from "./errors";
+import { writeAudit } from "./audit";
+import { formatBRL } from "@/lib/format";
 
 const D = (v: string | number | Prisma.Decimal) => new Prisma.Decimal(v);
 const money = (d: Prisma.Decimal) => d.toDecimalPlaces(2).toFixed(2);
@@ -87,15 +89,25 @@ export async function incomeStatement(from: Date, to: Date): Promise<IncomeState
 export async function createExpense(input: { amount: string; category: string; description: string; occurredAt: Date; userId: string }) {
   const amount = D(input.amount).toDecimalPlaces(2);
   if (amount.lte(0)) throw new DomainError("O valor deve ser maior que zero.", { amount: "Maior que zero" });
-  return prisma.ledgerEntry.create({
-    data: {
-      kind: "DESPESA",
-      amount: amount.neg(),
-      occurredAt: input.occurredAt,
-      description: input.description.trim(),
-      category: input.category.trim() || "Outros",
-      createdById: input.userId,
-    },
+  return prisma.$transaction(async (tx) => {
+    const entry = await tx.ledgerEntry.create({
+      data: {
+        kind: "DESPESA",
+        amount: amount.neg(),
+        occurredAt: input.occurredAt,
+        description: input.description.trim(),
+        category: input.category.trim() || "Outros",
+        createdById: input.userId,
+      },
+    });
+    await writeAudit(tx, {
+      actorId: input.userId,
+      action: "despesa.lancar",
+      entity: "LedgerEntry",
+      entityId: entry.id,
+      summary: `Lançou despesa de ${formatBRL(amount.toString())} em ${entry.category}: ${entry.description}`,
+    });
+    return entry;
   });
 }
 
@@ -108,7 +120,7 @@ export async function reverseExpense({ entryId, userId, at }: { entryId: string;
     if (e.kind !== "DESPESA") throw new DomainError("Só despesas podem ser estornadas por aqui.");
     if (e.stockMovementId) throw new DomainError("Perdas de estoque se corrigem com um ajuste de estoque.");
     if (await tx.ledgerEntry.findUnique({ where: { reversesId: e.id } })) throw new DomainError("Esta despesa já foi estornada.");
-    return tx.ledgerEntry.create({
+    const reversal = await tx.ledgerEntry.create({
       data: {
         kind: "ESTORNO",
         amount: D(e.amount).neg(),
@@ -119,6 +131,14 @@ export async function reverseExpense({ entryId, userId, at }: { entryId: string;
         createdById: userId,
       },
     });
+    await writeAudit(tx, {
+      actorId: userId,
+      action: "despesa.estornar",
+      entity: "LedgerEntry",
+      entityId: e.id,
+      summary: `Estornou a despesa "${e.description}" (${formatBRL(D(e.amount).abs().toString())})`,
+    });
+    return reversal;
   });
 }
 

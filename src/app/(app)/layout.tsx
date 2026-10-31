@@ -5,6 +5,7 @@ import { SIDEBAR_COOKIE } from "@/lib/ui-prefs";
 import { can, parseRoles, ROLE_LABELS } from "@/lib/auth/permissions";
 import { navFor } from "@/lib/nav";
 import { Sidebar } from "@/components/app-shell/sidebar";
+import { MobileNav } from "@/components/app-shell/mobile-nav";
 import { UserMenu } from "@/components/app-shell/user-menu";
 import { FocusSwitch, type Focus } from "@/components/app-shell/focus-switch";
 
@@ -26,7 +27,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b bg-background/95 px-4 backdrop-blur lg:px-8">
-          <div>
+          <div className="flex items-center gap-3">
+            <MobileNav allowedHrefs={allowedHrefs} />
             {seesProducts && seesServices && (
               <Suspense>
                 <FocusSwitch defaultFocus={defaultFocus} />

@@ -1,0 +1,24 @@
+version: 2
+updates:
+  # Dependências npm: atualizações semanais, agrupadas para não lotar de PRs.
+  # Correções de segurança chegam fora do calendário semanal.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 5
+    groups:
+      next-react:
+        patterns: ["next", "react", "react-dom", "eslint-config-next", "@types/react*"]
+      prisma:
+        patterns: ["prisma", "@prisma/*"]
+      ferramentas:
+        dependency-type: development
+        update-types: ["minor", "patch"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

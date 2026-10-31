@@ -13,7 +13,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "create-admin": "tsx scripts/create-admin.ts",
+    "db:deploy": "prisma migrate deploy",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",
@@ -35,12 +38,15 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "eslint": "^9.30.0",
     "eslint-config-next": "^16.4.3",
+    "pg": "^8.23.1",
     "prisma": "^7.10.1",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.20.0",

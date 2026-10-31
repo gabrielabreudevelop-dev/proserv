@@ -321,3 +321,23 @@ model LedgerEntry {
   @@index([saleId])
   @@index([appointmentId])
 }
+
+// ─────────────────────────────────────────────────────────────
+// Auditoria — quem fez o quê e quando. Só cresce: nada é editado ou apagado.
+// ─────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actorName String
+  action    String // ex.: venda.cancelar, produto.editar, usuario.bloquear
+  entity    String // ex.: Sale, Product, User
+  entityId  String?
+  summary   String // frase legível: "Cancelou a venda nº 25 (R$ 100,00): cliente desistiu"
+  changes   Json? // { campo: [antes, depois] } quando houver
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entity, entityId])
+  @@index([actorId, createdAt])
+}

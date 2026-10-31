@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { LogOut, UserCog } from "lucide-react";
 import { authClient } from "@/lib/auth/auth-client";
 import {
   DropdownMenu,
@@ -47,6 +48,11 @@ export function UserMenu({ name, email, roleLabel }: { name: string; email: stri
           <span className="block truncate text-xs text-muted-foreground">{email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/conta">
+            <UserCog className="size-4" /> Minha conta
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={logout}>
           <LogOut className="size-4" /> Sair
         </DropdownMenuItem>
