@@ -57,6 +57,7 @@ describe("auditoria", () => {
 
   it("edição de produto devolve antes e depois", async () => {
     const { changes } = await updateProduct(productId, { sku: `${RUN}-P`, name: "Produto auditado", salePrice: "12,5".replace(",", "."), category: "Nova", customFields: {} });
-    expect(changes).toEqual({ "Preço de venda": ["10.00", "12.50"], Categoria: [null, "Nova"] });
+    const n = (v: unknown) => (typeof v === "string" ? v.replace(/\u00a0/g, " ") : v);
+    expect(Object.fromEntries(Object.entries(changes).map(([k, [a, b]]) => [k, [n(a), n(b)]]))).toEqual({ "Preço de venda": ["R$ 10,00", "R$ 12,50"], Categoria: [null, "Nova"] });
   });
 });

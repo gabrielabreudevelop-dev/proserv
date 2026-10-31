@@ -41,8 +41,8 @@ export async function updateServiceAction(id: string, input: unknown) {
     const res = await updateService(id, data);
     const changes = before
       ? diff(
-          { Nome: before.name, Descrição: before.description, Valor: before.price.toFixed(2), "Custo estimado": before.estimatedCost.toFixed(2), "Duração (min)": before.durationMin },
-          { Nome: data.name, Descrição: data.description || null, Valor: Number(data.price).toFixed(2), "Custo estimado": Number(data.estimatedCost).toFixed(2), "Duração (min)": data.durationMin },
+          { Nome: before.name, Descrição: before.description, Valor: formatBRL(before.price.toString()), "Custo estimado": formatBRL(before.estimatedCost.toString()), Duração: formatDuration(before.durationMin) },
+          { Nome: data.name, Descrição: data.description || null, Valor: formatBRL(data.price), "Custo estimado": formatBRL(data.estimatedCost), Duração: formatDuration(data.durationMin) },
         )
       : {};
     if (Object.keys(changes).length) await auditAfter(session, { action: "servico.editar", entity: "Service", entityId: id, summary: `Editou o serviço "${data.name}": ${Object.keys(changes).join(", ")}`, changes });

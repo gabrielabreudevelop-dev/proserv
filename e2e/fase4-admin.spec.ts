@@ -104,7 +104,7 @@ test.describe("auditoria", () => {
     await page.goto("/config/auditoria?area=Product");
     const first = page.locator("tbody tr").first();
     await expect(first).toContainText("Editou \"Chá mate 1,5 L\": Preço de venda");
-    await expect(first).toContainText("8.50 → 8.90");
+    await expect(first).toContainText(/R\$\s8,50 → R\$\s8,90/);
   });
 });
 

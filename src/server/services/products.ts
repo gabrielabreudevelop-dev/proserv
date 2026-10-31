@@ -5,6 +5,7 @@ import { listFieldDefs } from "./custom-fields";
 import { DomainError } from "./errors";
 import { applyStockEntry } from "./stock";
 import { diff, type Changes } from "./audit";
+import { formatBRL, formatQty } from "@/lib/format";
 
 export type ProductRow = {
   id: string;
@@ -142,8 +143,8 @@ export async function updateProduct(id: string, input: ProductInput): Promise<{ 
       SKU: p.sku,
       Nome: p.name,
       Categoria: p.category?.name ?? null,
-      "Preço de venda": p.salePrice.toFixed(2),
-      "Estoque mínimo": p.minStock?.toString() ?? null,
+      "Preço de venda": formatBRL(p.salePrice.toString()),
+      "Estoque mínimo": p.minStock ? formatQty(p.minStock.toString()) : null,
       ...Object.fromEntries(Object.entries((p.customFields ?? {}) as CustomValues).map(([k, v]) => [labelOf[k] ?? k, v])),
     });
     return { name: updated.name, changes: diff(snapshot(current), snapshot(updated)) };
