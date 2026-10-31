@@ -9,6 +9,9 @@ import "dotenv/config";
 import { prisma } from "../src/lib/db";
 import { auth } from "../src/lib/auth/auth";
 import { createProduct } from "../src/server/services/products";
+import { createSale, cancelSale } from "../src/server/services/sales";
+import { createExpense } from "../src/server/services/finance";
+import { currentMonth, shiftMonth, BUSINESS_TZ_OFFSET, type PaymentMethod } from "../src/lib/finance-shared";
 
 const PASSWORD = process.env.SEED_PASSWORD ?? "proserv123";
 
@@ -105,6 +108,57 @@ async function main() {
       admin.id,
     );
     created++;
+  }
+
+  // Vendas e despesas de exemplo (mês anterior + mês atual até hoje), só se ainda não houver vendas.
+  if ((await prisma.sale.count()) === 0) {
+    const vendedor = await prisma.user.findUniqueOrThrow({ where: { email: "vendedor@proserv.local" } });
+    const bySku = new Map((await prisma.product.findMany({ select: { id: true, sku: true } })).map((p) => [p.sku, p.id]));
+    const methods: PaymentMethod[] = ["PIX", "PIX", "DEBITO", "CREDITO", "DINHEIRO"];
+    const now = new Date();
+    const at = (month: string, day: number, hour: number) => new Date(`${month}-${String(day).padStart(2, "0")}T${String(hour).padStart(2, "0")}:15:00${BUSINESS_TZ_OFFSET}`);
+    // [dia, hora, vendedor?, itens [sku, qtd], desconto]
+    const plan: [number, number, boolean, [string, number][], string][] = [
+      [2, 9, true, [["BEB-001", 6], ["MER-005", 2]], "0"],
+      [3, 11, false, [["MER-001", 1], ["MER-002", 2], ["MER-004", 2]], "2"],
+      [5, 15, true, [["HIG-002", 4], ["HIG-003", 2]], "0"],
+      [8, 10, true, [["LIM-002", 1], ["LIM-003", 2], ["LIM-005", 2]], "0"],
+      [9, 17, false, [["UTI-002", 2], ["UTI-001", 1]], "3"],
+      [12, 12, true, [["BEB-002", 6], ["BEB-005", 2]], "0"],
+      [15, 9, true, [["HIG-001", 1], ["HIG-004", 1]], "0"],
+      [18, 16, false, [["MER-001", 1], ["BEB-003", 1]], "0"],
+      [21, 14, true, [["BEB-001", 12]], "4"],
+      [24, 11, true, [["UTI-003", 2], ["UTI-002", 1]], "0"],
+      [27, 18, false, [["MER-002", 3], ["MER-005", 3]], "0"],
+    ];
+    const months = [shiftMonth(currentMonth(), -1), currentMonth()];
+    let n = 0;
+    for (const month of months) {
+      for (const [i, [day, hour, byVendedor, items, discount]] of plan.entries()) {
+        const when = at(month, day, hour);
+        if (when > now) continue;
+        const { sale } = await createSale({
+          items: items.map(([sku, q]) => ({ productId: bySku.get(sku)!, quantity: String(q) })),
+          discount,
+          paymentMethod: methods[i % methods.length],
+          sellerId: byVendedor ? vendedor.id : admin.id,
+          at: when,
+        });
+        n++;
+        if (month === months[0] && i === 4) {
+          await cancelSale({ saleId: sale.id, userId: admin.id, reason: "Cliente devolveu na mesma hora", at: new Date(when.getTime() + 20 * 60_000) });
+        }
+      }
+      for (const [day, category, description, amount] of [
+        [5, "Aluguel", "Aluguel do quiosque", "120.00"],
+        [10, "Energia", "Conta de luz", "38.40"],
+        [10, "Internet e telefone", "Internet fibra", "29.90"],
+      ] as const) {
+        const when = at(month, day, 12);
+        if (when <= now) await createExpense({ amount, category, description, occurredAt: when, userId: admin.id });
+      }
+    }
+    console.log(`${n} vendas de exemplo criadas.`);
   }
 
   const services = [

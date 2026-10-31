@@ -13,7 +13,7 @@ cp .env.example .env          # ajuste DATABASE_URL e BETTER_AUTH_SECRET
 npm install
 npx prisma generate
 npx prisma migrate dev        # cria as tabelas
-npx prisma db seed            # usuários de exemplo + 24 produtos
+npx prisma db seed            # usuários, 24 produtos, vendas e despesas de exemplo
 
 # banco de testes (uma vez)
 createdb proserv_test
@@ -57,6 +57,15 @@ As permissões vivem em um único arquivo, `src/lib/auth/permissions.ts`, usado 
 - **Estoque**: entrada recalcula o custo médio ponderado (4 casas). Ajuste negativo baixa ao custo médio e lança `DESPESA` no livro-razão. Estoque nunca fica negativo; a linha do produto é travada (`FOR UPDATE`) durante a operação.
 - **Custo e margem** só saem do servidor para quem pode ver o financeiro (admin e gerente).
 
+## Vendas e financeiro (Fase 2)
+
+- **PDV** (`/vendas/nova`): busca por teclado (↑ ↓ Enter), carrinho, desconto em R$ ou %, forma de pagamento, `Ctrl+Enter` finaliza. O preço vem sempre do cadastro, nunca do navegador.
+- **Venda atômica**: numa única transação grava a venda, baixa o estoque, congela o custo médio de cada item e lança `RECEITA_PRODUTO` (líquida do desconto) e `CMV`. Produtos são travados em ordem fixa, então vendas simultâneas nunca vendem além do estoque.
+- **Cancelamento** (gerente/admin): devolve o estoque pelo custo congelado e lança estornos na data do cancelamento. Cada estorno aponta para o lançamento original (`reversesId` único), então nada é estornado duas vezes.
+- **Financeiro** (`/financeiro`): DRE do mês no fuso de Brasília, despesas por categoria, extrato do livro-razão, lançar e estornar despesa. Lucro/Prejuízo nunca é guardado: é sempre a soma dos lançamentos.
+- **Conferência**: `docs/conferencia-financeira.md` traz um mês calculado à mão; `src/server/services/finance.test.ts` exige que a DRE bata centavo a centavo.
+- Vendedor vê só as próprias vendas e nunca recebe custo ou lucro do servidor.
+
 ## Estrutura
 
 ```text
@@ -80,6 +89,6 @@ prisma.config.ts           configuração do Prisma CLI
 
 - [x] Fase 0 — Fundação: repositório, CI, Prisma, autenticação, cargos, layout
 - [x] Fase 1 — Produtos: CRUD, campos personalizados, tabela dinâmica, estoque
-- [ ] Fase 2 — Vendas e financeiro: PDV, livro-razão, CMV, DRE
+- [x] Fase 2 — Vendas e financeiro: PDV, livro-razão, CMV, DRE
 - [ ] Fase 3 — Serviços e dashboard
 - [ ] Fase 4 — Lançamento: E2E, auditoria, deploy

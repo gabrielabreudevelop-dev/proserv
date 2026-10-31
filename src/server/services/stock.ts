@@ -44,7 +44,7 @@ async function lockProduct(tx: Tx, productId: string) {
   return rows[0];
 }
 
-export type EntryInput = { productId: string; quantity: string; unitCost: string; note?: string; userId: string };
+export type EntryInput = { productId: string; quantity: string; unitCost: string; note?: string; userId: string; /** Só testes/importação. */ at?: Date };
 
 /** Aplica uma entrada dentro de uma transação existente (usado também no cadastro). */
 export async function applyStockEntry(tx: Tx, input: EntryInput) {
@@ -67,6 +67,7 @@ export async function applyStockEntry(tx: Tx, input: EntryInput) {
       unitCost,
       note: input.note?.trim() || null,
       createdById: input.userId,
+      ...(input.at ? { createdAt: input.at } : {}),
     },
   });
   return { product, movement };
@@ -83,6 +84,8 @@ export type AdjustmentInput = {
   reason: AdjustmentReason;
   note?: string;
   userId: string;
+  /** Só testes/importação. */
+  at?: Date;
 };
 
 export async function registerStockAdjustment(input: AdjustmentInput) {
@@ -102,7 +105,7 @@ export async function registerStockAdjustment(input: AdjustmentInput) {
     const product = await tx.product.update({ where: { id: p.id }, data: { stockQty: newQty } });
     const note = [ADJUSTMENT_REASONS[input.reason], input.note?.trim()].filter(Boolean).join(" — ");
     const movement = await tx.stockMovement.create({
-      data: { productId: p.id, type: "AJUSTE", quantity: delta, unitCost: p.avgCost, note, createdById: input.userId },
+      data: { productId: p.id, type: "AJUSTE", quantity: delta, unitCost: p.avgCost, note, createdById: input.userId, createdAt: input.at ?? new Date() },
     });
 
     let ledgerEntry = null;
@@ -113,7 +116,7 @@ export async function registerStockAdjustment(input: AdjustmentInput) {
           data: {
             kind: "DESPESA",
             amount: loss.neg(),
-            occurredAt: new Date(),
+            occurredAt: input.at ?? new Date(),
             description: `Baixa de estoque: ${p.name} (${delta.abs().toString()} un.)`,
             category: "Perda de estoque",
             stockMovementId: movement.id,

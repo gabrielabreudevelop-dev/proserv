@@ -220,13 +220,18 @@ model Sale {
   sellerId      String
   seller        User       @relation(fields: [sellerId], references: [id])
   status        SaleStatus @default(CONCLUIDA)
+  subtotal      Decimal    @default(0) @db.Decimal(14, 2)
   discount      Decimal    @default(0) @db.Decimal(14, 2)
   total         Decimal    @db.Decimal(14, 2)
   paymentMethod String
   createdAt     DateTime   @default(now())
+  cancelledAt   DateTime?
+  cancelledById String?
+  cancelReason  String?
   items         SaleItem[]
 
   @@index([createdAt])
+  @@index([sellerId, createdAt])
 }
 
 model SaleItem {
@@ -298,9 +303,12 @@ model LedgerEntry {
   saleId          String?
   appointmentId   String?
   stockMovementId String?
+  /// Estorno: aponta para o lançamento que este anula (no máximo um estorno por lançamento).
+  reversesId      String?    @unique
   createdById     String
   createdAt       DateTime   @default(now())
 
   @@index([occurredAt])
   @@index([kind, occurredAt])
+  @@index([saleId])
 }
