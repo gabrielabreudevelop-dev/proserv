@@ -26,7 +26,11 @@ describe("can()", () => {
 
   it("prestador só vê a própria agenda e serviços", () => {
     expect(can("prestador", "agenda", "ver")).toBe(true);
+    expect(can("prestador", "agenda", "concluir")).toBe(true);
+    expect(can("prestador", "agenda", "agendar")).toBe(false);
     expect(can("prestador", "agenda", "verTodas")).toBe(false);
+    expect(can("prestador", "servico", "gerenciar")).toBe(false);
+    expect(can("gerente", "agenda", "agendar")).toBe(true);
     expect(can("prestador", "produto", "ver")).toBe(false);
   });
 

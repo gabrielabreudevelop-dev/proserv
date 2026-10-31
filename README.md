@@ -28,7 +28,7 @@ Acesse http://localhost:3000 e entre com um dos usuários do seed (senha `proser
 | Administrador | admin@proserv.local | tudo, inclusive usuários |
 | Gerente | gerente@proserv.local | tudo, exceto usuários |
 | Vendedor | vendedor@proserv.local | dashboard de produtos, produtos (leitura), vendas |
-| Prestador | prestador@proserv.local | dashboard de serviços, serviços, agenda |
+| Prestador | prestador@proserv.local · prestador2@proserv.local | dashboard de serviços, catálogo, a própria agenda |
 
 ## Scripts
 
@@ -66,6 +66,15 @@ As permissões vivem em um único arquivo, `src/lib/auth/permissions.ts`, usado 
 - **Conferência**: `docs/conferencia-financeira.md` traz um mês calculado à mão; `src/server/services/finance.test.ts` exige que a DRE bata centavo a centavo.
 - Vendedor vê só as próprias vendas e nunca recebe custo ou lucro do servidor.
 
+## Serviços, agenda e dashboard (Fase 3)
+
+- **Serviços** (`/servicos`): duração, valor e custo estimado (insumos/comissão). A duração define o tamanho do horário na agenda.
+- **Agenda** (`/agenda`): visão dia (uma coluna por prestador) e semana, linha do "agora", atrasados em destaque. Clicar num horário vago agenda; o diálogo avisa choque de horário antes de enviar.
+- **Sem choque de horário**: o agendamento trava o prestador (`pg_advisory_xact_lock`) e só então confere sobreposição. Agendamentos simultâneos no mesmo horário: só um entra.
+- **Ciclo**: agendado → em andamento → concluído (ou cancelado). Iniciar/concluir liberam 1 h antes do horário. Concluir lança `RECEITA_SERVICO` (valor cobrado) e `DESPESA` com o custo estimado, na data do atendimento. Cancelar um concluído (gerente/admin) estorna os dois.
+- **Prestador** vê e conclui só os próprios atendimentos — o filtro é aplicado na consulta, e a URL `?prestador=` é ignorada para ele.
+- **Dashboard**: visão Produtos (faturamento e vendas de 7 dias com comparação, mais vendidos, estoque baixo, lucro do mês) e visão Serviços (faturamento do dia e da semana, agenda de hoje, pendentes, taxa de conclusão). Cada um escolhe a visão padrão. Vendedor e prestador veem só os próprios números, e o prestador não vê valores.
+
 ## Estrutura
 
 ```text
@@ -90,5 +99,5 @@ prisma.config.ts           configuração do Prisma CLI
 - [x] Fase 0 — Fundação: repositório, CI, Prisma, autenticação, cargos, layout
 - [x] Fase 1 — Produtos: CRUD, campos personalizados, tabela dinâmica, estoque
 - [x] Fase 2 — Vendas e financeiro: PDV, livro-razão, CMV, DRE
-- [ ] Fase 3 — Serviços e dashboard
+- [x] Fase 3 — Serviços, agenda e dashboard
 - [ ] Fase 4 — Lançamento: E2E, auditoria, deploy

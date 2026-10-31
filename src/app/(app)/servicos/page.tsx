@@ -1,12 +1,19 @@
 import { requirePermission } from "@/lib/auth/guards";
-import { PageHeader, PlannedModule } from "@/components/page-header";
+import { can } from "@/lib/auth/permissions";
+import { PageHeader } from "@/components/page-header";
+import { listServices } from "@/server/services/catalog";
+import { ServicesManager } from "./services-manager";
+
+export const metadata = { title: "Serviços" };
 
 export default async function ServicosPage() {
-  await requirePermission("servico", "ver");
+  const { user } = await requirePermission("servico", "ver");
+  const perms = { manage: can(user.role, "servico", "gerenciar"), seeCost: can(user.role, "financeiro", "ver") };
+  const services = await listServices({ includeCost: perms.seeCost, includeInactive: perms.manage });
   return (
     <>
-      <PageHeader title="Serviços" description="Catálogo de serviços prestados" />
-      <PlannedModule phase="Fase 3" items={["Cadastro com descrição, duração e valor", "Custo estimado (insumos/comissão)"]} />
+      <PageHeader title="Serviços" description="Tipos de serviço, duração e valor. A duração define o tamanho do horário na agenda." />
+      <ServicesManager services={services} perms={perms} />
     </>
   );
 }

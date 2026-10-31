@@ -254,6 +254,7 @@ model Customer {
   name         String
   phone        String?
   email        String?
+  notes        String?
   createdAt    DateTime      @default(now())
   appointments Appointment[]
 
@@ -283,10 +284,17 @@ model Appointment {
   endsAt       DateTime
   status       AppointmentStatus @default(AGENDADO)
   chargedPrice Decimal?          @db.Decimal(14, 2)
+  paymentMethod String?
   notes        String?
+  createdById  String?
+  createdAt    DateTime          @default(now())
+  completedAt  DateTime?
+  cancelledAt  DateTime?
+  cancelReason String?
 
   @@index([startsAt])
   @@index([providerId, startsAt])
+  @@index([status, startsAt])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -311,4 +319,5 @@ model LedgerEntry {
   @@index([occurredAt])
   @@index([kind, occurredAt])
   @@index([saleId])
+  @@index([appointmentId])
 }

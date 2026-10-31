@@ -16,7 +16,7 @@ export const statement = {
   campo: ["gerenciar"],
   venda: ["registrar", "cancelar", "verTodas"],
   servico: ["ver", "gerenciar"],
-  agenda: ["ver", "verTodas", "concluir"],
+  agenda: ["ver", "verTodas", "agendar", "concluir"],
   financeiro: ["ver", "lancar"],
 } as const;
 
@@ -29,7 +29,7 @@ const all = {
   campo: ["gerenciar"],
   venda: ["registrar", "cancelar", "verTodas"],
   servico: ["ver", "gerenciar"],
-  agenda: ["ver", "verTodas", "concluir"],
+  agenda: ["ver", "verTodas", "agendar", "concluir"],
   financeiro: ["ver", "lancar"],
 } as const;
 

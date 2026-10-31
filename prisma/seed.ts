@@ -11,6 +11,8 @@ import { auth } from "../src/lib/auth/auth";
 import { createProduct } from "../src/server/services/products";
 import { createSale, cancelSale } from "../src/server/services/sales";
 import { createExpense } from "../src/server/services/finance";
+import { scheduleAppointment, completeAppointment, cancelAppointment, startAppointment } from "../src/server/services/appointments";
+import { addDays, atLocal, localParts } from "../src/lib/time";
 import { currentMonth, shiftMonth, BUSINESS_TZ_OFFSET, type PaymentMethod } from "../src/lib/finance-shared";
 
 const PASSWORD = process.env.SEED_PASSWORD ?? "proserv123";
@@ -20,6 +22,7 @@ const USERS = [
   { name: "Gustavo Gerente", email: "gerente@proserv.local", role: "gerente" },
   { name: "Vera Vendedora", email: "vendedor@proserv.local", role: "vendedor" },
   { name: "Paulo Prestador", email: "prestador@proserv.local", role: "prestador" },
+  { name: "Marina Técnica", email: "prestador2@proserv.local", role: "prestador" },
 ] as const;
 
 async function upsertUser(u: (typeof USERS)[number], passwordHash: string) {
@@ -161,11 +164,62 @@ async function main() {
     console.log(`${n} vendas de exemplo criadas.`);
   }
 
-  const services = [
-    { name: "Instalação de ar-condicionado", description: "Split até 12.000 BTUs", price: "350.00", estimatedCost: "80.00", durationMin: 120 },
-    { name: "Limpeza de ar-condicionado", description: "Higienização completa", price: "180.00", estimatedCost: "30.00", durationMin: 60 },
+  // Catálogo de serviços
+  const services: [string, string, string, string, number][] = [
+    ["Instalação de ar-condicionado", "Split até 12.000 BTUs", "350.00", "80.00", 120],
+    ["Limpeza de ar-condicionado", "Higienização completa", "180.00", "30.00", 60],
+    ["Manutenção preventiva", "Revisão e teste de gás", "220.00", "45.00", 90],
+    ["Visita técnica", "Diagnóstico no local", "90.00", "0", 30],
+    ["Troca de capacitor", "Peça inclusa", "160.00", "55.00", 45],
   ];
-  if ((await prisma.service.count()) === 0) await prisma.service.createMany({ data: services });
+  for (const [name, description, price, estimatedCost, durationMin] of services) {
+    const found = await prisma.service.findFirst({ where: { name } });
+    if (found) await prisma.service.update({ where: { id: found.id }, data: { description, price, estimatedCost, durationMin } });
+    else await prisma.service.create({ data: { name, description, price, estimatedCost, durationMin } });
+  }
+
+  // Agenda de exemplo: últimos 10 dias, hoje e próximos 6 dias (só se ainda não houver atendimentos)
+  if ((await prisma.appointment.count()) === 0) {
+    const svc = new Map((await prisma.service.findMany()).map((x) => [x.name, x.id]));
+    const paulo = await prisma.user.findUniqueOrThrow({ where: { email: "prestador@proserv.local" } });
+    const marina = await prisma.user.findUniqueOrThrow({ where: { email: "prestador2@proserv.local" } });
+    const clientes = ["Ana Souza", "Bruno Lima", "Carla Mendes", "Diego Rocha", "Elaine Costa", "Fábio Nunes", "Gisele Prado", "Hugo Alves", "Isabela Reis", "João Pedro Martins"];
+    const now = new Date();
+    const today = localParts(now).date;
+    const names = [...svc.keys()];
+    // [deslocamento em dias, hora, prestador, índice do serviço]
+    const slots: [number, string, "p" | "m", number][] = [];
+    for (let d = -10; d <= 6; d++) {
+      slots.push([d, "08:00", "p", (d + 20) % 5], [d, "13:30", "p", (d + 21) % 5], [d, "09:30", "m", (d + 22) % 5]);
+      if (d % 2 === 0) slots.push([d, "15:00", "m", (d + 23) % 5]);
+    }
+    let created = 0;
+    for (const [i, [d, time, who, si]] of slots.entries()) {
+      const date = addDays(today, d);
+      const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+      if (weekday === 0) continue; // domingo fechado
+      const providerId = who === "p" ? paulo.id : marina.id;
+      const actor = { id: providerId, seeAll: false };
+      const a = await scheduleAppointment({
+        serviceId: svc.get(names[si])!,
+        providerId,
+        customer: { name: clientes[i % clientes.length], phone: `1199${String(1000000 + (i % clientes.length) * 7919).slice(-7)}` },
+        startsAt: atLocal(date, time),
+        userId: admin.id,
+      });
+      created++;
+      const end = a.endsAt;
+      if (end < now) {
+        if (i % 11 === 5) await cancelAppointment({ id: a.id, reason: "Cliente não estava em casa", actor, now: a.startsAt });
+        else if (i % 13 === 7) {
+          /* fica pendente: horário passou e ninguém concluiu */
+        } else await completeAppointment({ id: a.id, paymentMethod: (["PIX", "DINHEIRO", "CREDITO"] as const)[i % 3], actor, now: end });
+      } else if (a.startsAt < now) {
+        await startAppointment({ id: a.id, actor, now });
+      }
+    }
+    console.log(`${created} atendimentos de exemplo criados.`);
+  }
 
   console.log(`Seed concluído. ${created} produtos novos. Usuários: ${USERS.map((u) => u.email).join(", ")} · senha: ${PASSWORD}`);
 }
