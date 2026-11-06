@@ -13,10 +13,15 @@ const saleSchema = z.object({
     .max(200),
   discount: z.preprocess((v) => (v === "" || v === null ? "0" : v), decimalField("desconto")),
   paymentMethod: z.enum(Object.keys(PAYMENT_METHODS) as [PaymentMethod, ...PaymentMethod[]], { error: "Escolha a forma de pagamento" }),
+  /** Opcional: cliente cadastrado (id) ou novo (nome + telefone). */
+  customer: z
+    .union([z.object({ id: z.string().min(1) }), z.object({ name: z.string().trim().min(2, "Nome do cliente muito curto").max(80), phone: z.string().trim().max(20).optional() })])
+    .nullish(),
 });
 
 function revalidate() {
   for (const p of ["/vendas", "/vendas/nova", "/produtos", "/financeiro", "/dashboard"]) revalidatePath(p);
+  revalidatePath("/clientes", "layout");
 }
 
 export async function createSaleAction(input: unknown) {

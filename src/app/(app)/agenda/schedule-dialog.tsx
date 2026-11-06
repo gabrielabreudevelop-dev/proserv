@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatBRL } from "@/lib/format";
+import { formatPhone } from "@/lib/phone";
 import { AGENDA_END_HOUR, AGENDA_START_HOUR, SLOT_MINUTES, atLocal, formatDuration, minutesToTime } from "@/lib/time";
 import type { AppointmentRow } from "@/server/services/appointments";
 import type { CustomerOption, ProviderOption } from "@/server/services/catalog";
@@ -17,7 +18,7 @@ export type ServiceOption = { id: string; name: string; durationMin: number; pri
 export type ScheduleDraft = { date: string; time: string; providerId: string };
 
 const TIMES = Array.from({ length: ((AGENDA_END_HOUR - AGENDA_START_HOUR) * 60) / SLOT_MINUTES }, (_, i) => minutesToTime(AGENDA_START_HOUR * 60 + i * SLOT_MINUTES));
-const customerLabel = (c: CustomerOption) => (c.phone ? `${c.name} · ${c.phone}` : c.name);
+export const customerLabel = (c: CustomerOption) => (c.phone ? `${c.name} · ${formatPhone(c.phone)}` : c.name);
 
 export function ScheduleDialog({
   draft,
@@ -26,6 +27,8 @@ export function ScheduleDialog({
   providers,
   customers,
   appointments,
+  presetCustomer,
+  presetServiceId,
 }: {
   draft: ScheduleDraft | null;
   onClose: () => void;
@@ -33,11 +36,15 @@ export function ScheduleDialog({
   providers: ProviderOption[];
   customers: CustomerOption[];
   appointments: AppointmentRow[];
+  /** Agendamento aberto pela ficha do cliente: já vem preenchido. */
+  presetCustomer?: CustomerOption;
+  /** Serviço que já vem escolhido (ex.: o preferido do cliente). */
+  presetServiceId?: string;
 }) {
   return (
     <Dialog open={draft !== null} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-xl">
-        {draft && <ScheduleForm key={`${draft.date}${draft.time}${draft.providerId}`} draft={draft} onClose={onClose} services={services} providers={providers} customers={customers} appointments={appointments} />}
+        {draft && <ScheduleForm key={`${draft.date}${draft.time}${draft.providerId}`} draft={draft} onClose={onClose} services={services} providers={providers} customers={customers} appointments={appointments} presetCustomer={presetCustomer} presetServiceId={presetServiceId} />}
       </DialogContent>
     </Dialog>
   );
@@ -50,6 +57,8 @@ function ScheduleForm({
   providers,
   customers,
   appointments,
+  presetCustomer,
+  presetServiceId,
 }: {
   draft: ScheduleDraft;
   onClose: () => void;
@@ -57,19 +66,21 @@ function ScheduleForm({
   providers: ProviderOption[];
   customers: CustomerOption[];
   appointments: AppointmentRow[];
+  presetCustomer?: CustomerOption;
+  presetServiceId?: string;
 }) {
-  const [serviceId, setServiceId] = useState(services[0]?.id ?? "");
+  const [serviceId, setServiceId] = useState(services.find((s) => s.id === presetServiceId)?.id ?? services[0]?.id ?? "");
   const [providerId, setProviderId] = useState(draft.providerId);
   const [date, setDate] = useState(draft.date);
   const [time, setTime] = useState(TIMES.includes(draft.time) ? draft.time : "09:00");
-  const [customerText, setCustomerText] = useState("");
+  const [customerText, setCustomerText] = useState(presetCustomer ? customerLabel(presetCustomer) : "");
   const [phone, setPhone] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, start] = useTransition();
   const [openedAt] = useState(() => Date.now());
 
   const service = services.find((s) => s.id === serviceId);
-  const existing = customers.find((c) => customerLabel(c) === customerText || c.name.toLowerCase() === customerText.trim().toLowerCase());
+  const existing = [...(presetCustomer ? [presetCustomer] : []), ...customers].find((c) => customerLabel(c) === customerText || c.name.toLowerCase() === customerText.trim().toLowerCase());
   const startsAt = atLocal(date, time);
   const endsAt = service ? new Date(startsAt.getTime() + service.durationMin * 60_000) : startsAt;
 
@@ -152,7 +163,7 @@ function ScheduleForm({
           <Input value={customerText} onChange={(e) => setCustomerText(e.target.value)} list="sch-customers" autoComplete="off" maxLength={80} />
         </Field>
         <Field id="sch-phone" label="Telefone" error={errors.customerPhone}>
-          <Input value={existing ? (existing.phone ?? "") : phone} onChange={(e) => setPhone(e.target.value)} disabled={Boolean(existing)} inputMode="tel" placeholder="(11) 90000-0000" maxLength={20} />
+          <Input value={existing ? formatPhone(existing.phone) : phone} onChange={(e) => setPhone(e.target.value)} disabled={Boolean(existing)} inputMode="tel" placeholder="(11) 90000-0000" maxLength={20} />
         </Field>
       </div>
       <datalist id="sch-customers">

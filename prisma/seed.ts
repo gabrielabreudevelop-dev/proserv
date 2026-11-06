@@ -219,6 +219,24 @@ async function main() {
       }
     }
     console.log(`${created} atendimentos de exemplo criados.`);
+
+    // Clientes que não voltam há mais de 2 meses (filtro "Sumidos").
+    for (const [name, phone, daysAgo] of [
+      ["Lúcia Ferraz", "11987650001", 70],
+      ["Marcos Teixeira", "11987650002", 95],
+    ] as const) {
+      const a = await scheduleAppointment({ serviceId: svc.get(names[1])!, providerId: paulo.id, customer: { name, phone }, startsAt: atLocal(addDays(today, -daysAgo), "10:00"), userId: admin.id });
+      await completeAppointment({ id: a.id, paymentMethod: "PIX", actor: { id: paulo.id, seeAll: false }, now: a.endsAt });
+    }
+
+    // Observações e e-mail de exemplo, e parte das vendas ligada a clientes.
+    await prisma.customer.updateMany({ where: { name: "Ana Souza" }, data: { notes: "Prefere atendimento pela manhã. Prédio com portaria: avisar na chegada.", email: "ana.souza@exemplo.com" } });
+    await prisma.customer.updateMany({ where: { name: "Hugo Alves" }, data: { notes: "Dois aparelhos: sala e quarto." } });
+    const customers = await prisma.customer.findMany({ orderBy: { name: "asc" } });
+    const sales = await prisma.sale.findMany({ where: { customerId: null }, orderBy: { createdAt: "asc" }, select: { id: true } });
+    for (const [i, s] of sales.entries()) {
+      if (i % 4 === 0) await prisma.sale.update({ where: { id: s.id }, data: { customerId: customers[(i / 4) % customers.length].id } });
+    }
   }
 
   console.log(`Seed concluído. ${created} produtos novos. Usuários: ${USERS.map((u) => u.email).join(", ")} · senha: ${PASSWORD}`);

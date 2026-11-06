@@ -16,6 +16,7 @@ import { PAYMENT_METHODS, REVERSAL_CATEGORY, type PaymentMethod } from "@/lib/fi
 import { DomainError } from "./errors";
 import { nextAverageCost } from "./stock";
 import { writeAudit } from "./audit";
+import { resolveCustomer, type CustomerRef } from "./customers";
 import { formatBRL } from "@/lib/format";
 
 const D = (v: string | number | Prisma.Decimal) => new Prisma.Decimal(v);
@@ -26,6 +27,8 @@ export type NewSaleInput = {
   discount?: string;
   paymentMethod: PaymentMethod;
   sellerId: string;
+  /** Opcional: identifica o comprador (cadastra na hora se for novo). */
+  customer?: CustomerRef | null;
   /** Só para testes/importação: data da venda. Padrão: agora. */
   at?: Date;
 };
@@ -77,10 +80,13 @@ export async function createSale(input: NewSaleInput) {
     if (discount.lt(0)) throw new DomainError("O desconto não pode ser negativo.", { discount: "Não pode ser negativo" });
     if (discount.gt(subtotal)) throw new DomainError("O desconto não pode ser maior que o subtotal.", { discount: "Maior que o subtotal" });
     const total = subtotal.sub(discount);
+    const customerId = input.customer ? await resolveCustomer(tx, input.customer) : null;
+    const customer = customerId ? await tx.customer.findUnique({ where: { id: customerId }, select: { name: true } }) : null;
 
     const sale = await tx.sale.create({
       data: {
         sellerId: input.sellerId,
+        customerId,
         status: "CONCLUIDA",
         subtotal,
         discount,
@@ -114,7 +120,7 @@ export async function createSale(input: NewSaleInput) {
       action: "venda.registrar",
       entity: "Sale",
       entityId: sale.id,
-      summary: `Registrou a venda nº ${sale.number}: ${lines.map((l) => `${l.qty.toString()}× ${l.p.name}`).join(", ")} · total ${formatBRL(total.toString())}${discount.gt(0) ? ` (desconto ${formatBRL(discount.toString())})` : ""}`,
+      summary: `Registrou a venda nº ${sale.number}${customer ? ` para ${customer.name}` : ""}: ${lines.map((l) => `${l.qty.toString()}× ${l.p.name}`).join(", ")} · total ${formatBRL(total.toString())}${discount.gt(0) ? ` (desconto ${formatBRL(discount.toString())})` : ""}`,
     });
     return { sale, cmv };
   });
@@ -180,6 +186,7 @@ export type SaleListRow = {
   number: number;
   createdAt: string;
   seller: string;
+  customer: { id: string; name: string } | null;
   status: "ABERTA" | "CONCLUIDA" | "CANCELADA";
   paymentMethod: string;
   itemsCount: number;
@@ -195,7 +202,7 @@ export type SaleListRow = {
 export async function listSales({ from, to, sellerId, includeCost }: { from: Date; to: Date; sellerId?: string; includeCost: boolean }) {
   const rows = await prisma.sale.findMany({
     where: { createdAt: { gte: from, lt: to }, ...(sellerId ? { sellerId } : {}) },
-    include: { seller: { select: { name: true } }, items: { include: { product: { select: { name: true, sku: true } } } } },
+    include: { seller: { select: { name: true } }, customer: { select: { id: true, name: true } }, items: { include: { product: { select: { name: true, sku: true } } } } },
     orderBy: { createdAt: "desc" },
   });
   return rows.map<SaleListRow>((s) => {
@@ -205,6 +212,7 @@ export async function listSales({ from, to, sellerId, includeCost }: { from: Dat
       number: s.number,
       createdAt: s.createdAt.toISOString(),
       seller: s.seller.name,
+      customer: s.customer,
       status: s.status,
       paymentMethod: PAYMENT_METHODS[s.paymentMethod as PaymentMethod] ?? s.paymentMethod,
       itemsCount: s.items.reduce((n, i) => n + i.quantity.toNumber(), 0),

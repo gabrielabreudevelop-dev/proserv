@@ -2,6 +2,7 @@ import {
   BadgeDollarSign,
   ScrollText,
   CalendarDays,
+  Contact,
   LayoutDashboard,
   Package,
   ShoppingCart,
@@ -45,6 +46,7 @@ export const NAV: NavSection[] = [
       { href: "/vendas", label: "Vendas", icon: ShoppingCart, anyOf: [{ resource: "venda", action: "registrar" }] },
       { href: "/servicos", label: "Serviços", icon: Wrench, anyOf: [{ resource: "servico", action: "ver" }] },
       { href: "/agenda", label: "Agenda", icon: CalendarDays, anyOf: [{ resource: "agenda", action: "ver" }] },
+      { href: "/clientes", label: "Clientes", icon: Contact, anyOf: [{ resource: "cliente", action: "ver" }] },
     ],
   },
   {

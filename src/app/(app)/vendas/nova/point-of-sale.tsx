@@ -9,6 +9,8 @@ import { PAYMENT_METHODS, type PaymentMethod } from "@/lib/finance-shared";
 import { formatBRL, formatQty, parseDecimalInput } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { SellableProduct } from "@/server/services/sales";
+import type { CustomerOption } from "@/server/services/customers";
+import { formatPhone } from "@/lib/phone";
 import { createSaleAction } from "@/server/actions/sales";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,13 +20,17 @@ type Line = { product: SellableProduct; qty: string };
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const cents = (n: number) => Math.round(n * 100) / 100;
 
-export function PointOfSale({ products }: { products: SellableProduct[] }) {
+const customerLabel = (c: CustomerOption) => (c.phone ? `${c.name} · ${formatPhone(c.phone)}` : c.name);
+
+export function PointOfSale({ products, customers }: { products: SellableProduct[]; customers: CustomerOption[] }) {
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
   const [cart, setCart] = useState<Line[]>([]);
   const [discountRaw, setDiscountRaw] = useState("");
   const [discountMode, setDiscountMode] = useState<"valor" | "pct">("valor");
   const [payment, setPayment] = useState<PaymentMethod | null>(null);
+  const [customerText, setCustomerText] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [pending, start] = useTransition();
   const searchRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -76,7 +82,13 @@ export function PointOfSale({ products }: { products: SellableProduct[] }) {
   const total = cents(subtotal - discount);
   const problems = lines.filter((l) => qtyOf(l) <= 0 || qtyOf(l) > Number(l.product.stock));
   const discountInvalid = discount < 0 || discount > subtotal || (discountRaw !== "" && parseDecimalInput(discountRaw) === null);
-  const canFinish = lines.length > 0 && problems.length === 0 && !discountInvalid && payment !== null && !pending;
+  const typedCustomer = customerText.trim();
+  const existingCustomer = typedCustomer
+    ? customers.find((c) => customerLabel(c) === typedCustomer || c.name.toLowerCase() === typedCustomer.toLowerCase())
+    : undefined;
+  const newCustomer = typedCustomer.length > 0 && !existingCustomer;
+  const customerInvalid = newCustomer && typedCustomer.length < 2;
+  const canFinish = !customerInvalid && lines.length > 0 && problems.length === 0 && !discountInvalid && payment !== null && !pending;
 
   function onSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "ArrowDown") {
@@ -99,14 +111,17 @@ export function PointOfSale({ products }: { products: SellableProduct[] }) {
         items: lines.map((l) => ({ productId: l.product.id, quantity: l.qty })),
         discount: discount.toFixed(2),
         paymentMethod: payment,
+        customer: existingCustomer ? { id: existingCustomer.id } : newCustomer ? { name: typedCustomer, phone: customerPhone } : null,
       });
       if (!res.ok) return void toast.error(res.error);
-      toast.success(`Venda nº ${res.data.number} registrada · ${formatBRL(res.data.total)}`, {
+      toast.success(`Venda nº ${res.data.number} registrada · ${formatBRL(res.data.total)}${existingCustomer ? ` · ${existingCustomer.name}` : newCustomer ? ` · ${typedCustomer}` : ""}`, {
         action: { label: "Ver vendas", onClick: () => router.push("/vendas") },
       });
       setCart([]);
       setDiscountRaw("");
       setPayment(null);
+      setCustomerText("");
+      setCustomerPhone("");
       searchRef.current?.focus();
     });
   }
@@ -284,6 +299,41 @@ export function PointOfSale({ products }: { products: SellableProduct[] }) {
               <dd className="text-2xl font-semibold tracking-tight tabular-nums">{formatBRL(Math.max(total, 0))}</dd>
             </div>
           </dl>
+
+          <div className="space-y-1.5">
+            <label htmlFor="pdv-customer" className="text-sm font-medium">
+              Cliente <span className="font-normal text-muted-foreground">(opcional)</span>
+            </label>
+            <Input
+              id="pdv-customer"
+              list="pdv-customers"
+              value={customerText}
+              onChange={(e) => setCustomerText(e.target.value)}
+              placeholder="Venda de balcão"
+              autoComplete="off"
+              maxLength={80}
+              aria-describedby="pdv-customer-hint"
+              aria-invalid={customerInvalid || undefined}
+            />
+            {newCustomer && (
+              <Input
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                inputMode="tel"
+                placeholder="Telefone do novo cliente (opcional)"
+                aria-label="Telefone do novo cliente"
+                maxLength={20}
+              />
+            )}
+            <p id="pdv-customer-hint" className="text-xs text-muted-foreground">
+              {existingCustomer ? "Cliente cadastrado — a compra vai para o histórico dele" : newCustomer ? "Novo cliente: será cadastrado junto com a venda" : "Deixe em branco para venda sem identificação"}
+            </p>
+            <datalist id="pdv-customers">
+              {customers.map((c) => (
+                <option key={c.id} value={customerLabel(c)} />
+              ))}
+            </datalist>
+          </div>
 
           <fieldset>
             <legend className="mb-2 text-sm font-medium">Pagamento</legend>

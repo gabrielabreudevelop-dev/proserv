@@ -15,6 +15,7 @@ import { diff } from "@/server/services/audit";
 
 function revalidate() {
   for (const p of ["/servicos", "/agenda", "/dashboard", "/financeiro"]) revalidatePath(p);
+  revalidatePath("/clientes", "layout");
 }
 
 // ── Catálogo ─────────────────────────────────────────────

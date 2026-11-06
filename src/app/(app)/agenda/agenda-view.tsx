@@ -14,7 +14,7 @@ import { placeBlocks, snap } from "./layout-engine";
 import { AppointmentSheet } from "./appointment-sheet";
 import { ScheduleDialog, type ScheduleDraft, type ServiceOption } from "./schedule-dialog";
 
-export type AgendaPerms = { seeAll: boolean; schedule: boolean; complete: boolean };
+export type AgendaPerms = { seeAll: boolean; schedule: boolean; complete: boolean; customers: boolean };
 
 type Props = {
   view: "dia" | "semana";

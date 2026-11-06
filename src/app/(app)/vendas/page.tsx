@@ -62,7 +62,7 @@ export default async function VendasPage({ searchParams }: Props) {
         )}
       </div>
 
-      <SalesTable sales={sales} showSeller={seeAll} seeCost={seeCost} canCancel={canCancel} />
+      <SalesTable sales={sales} showSeller={seeAll} seeCost={seeCost} canCancel={canCancel} linkCustomers={can(user.role, "cliente", "ver")} />
     </>
   );
 }

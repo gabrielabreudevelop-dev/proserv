@@ -72,11 +72,7 @@ export async function setServiceActive(id: string, active: boolean) {
   await prisma.service.update({ where: { id }, data: { active } });
 }
 
-export async function listCustomers() {
-  const rows = await prisma.customer.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, phone: true } });
-  return rows;
-}
-export type CustomerOption = Awaited<ReturnType<typeof listCustomers>>[number];
+export { listCustomerOptions as listCustomers, type CustomerOption } from "./customers";
 
 /** Prestadores ativos: quem tem o cargo prestador (pode acumular outros). */
 export async function listProviders() {

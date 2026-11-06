@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useState, useTransition } from "react";
 import { ChevronRight, Loader2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
@@ -15,10 +16,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 const dateTime = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
 
-export function SalesTable({ sales, showSeller, seeCost, canCancel }: { sales: SaleListRow[]; showSeller: boolean; seeCost: boolean; canCancel: boolean }) {
+export function SalesTable({
+  sales,
+  showSeller,
+  seeCost,
+  canCancel,
+  linkCustomers,
+}: {
+  sales: SaleListRow[];
+  showSeller: boolean;
+  seeCost: boolean;
+  canCancel: boolean;
+  /** Quem vê a tela de clientes ganha o link para a ficha. */
+  linkCustomers: boolean;
+}) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [cancelling, setCancelling] = useState<SaleListRow | null>(null);
-  const cols = 6 + (showSeller ? 1 : 0) + (canCancel ? 1 : 0);
+  const cols = 7 + (showSeller ? 1 : 0) + (canCancel ? 1 : 0);
 
   const toggle = (id: string) =>
     setOpen((s) => {
@@ -39,6 +53,7 @@ export function SalesTable({ sales, showSeller, seeCost, canCancel }: { sales: S
               </TableHead>
               <TableHead>Nº</TableHead>
               <TableHead>Data</TableHead>
+              <TableHead>Cliente</TableHead>
               {showSeller && <TableHead>Vendedor</TableHead>}
               <TableHead className="text-right">Itens</TableHead>
               <TableHead>Pagamento</TableHead>
@@ -77,6 +92,19 @@ export function SalesTable({ sales, showSeller, seeCost, canCancel }: { sales: S
                     </TableCell>
                     <TableCell className="font-mono text-xs">#{s.number}</TableCell>
                     <TableCell className="tabular-nums">{dateTime.format(new Date(s.createdAt))}</TableCell>
+                    <TableCell className="max-w-48 truncate">
+                      {s.customer ? (
+                        linkCustomers ? (
+                          <Link href={`/clientes/${s.customer.id}`} className="underline-offset-4 hover:underline">
+                            {s.customer.name}
+                          </Link>
+                        ) : (
+                          s.customer.name
+                        )
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     {showSeller && <TableCell>{s.seller}</TableCell>}
                     <TableCell className="text-right tabular-nums">{formatQty(s.itemsCount)}</TableCell>
                     <TableCell>{s.paymentMethod}</TableCell>

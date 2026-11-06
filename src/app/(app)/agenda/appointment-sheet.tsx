@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { CalendarClock, CheckCircle2, Loader2, Phone, Play, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/lib/finance-shared";
 import { formatBRL, parseDecimalInput } from "@/lib/format";
 import { AGENDA_END_HOUR, AGENDA_START_HOUR, SLOT_MINUTES, localParts, longDate, minutesToTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import { formatPhone } from "@/lib/phone";
 import type { AppointmentRow } from "@/server/services/appointments";
 import type { ProviderOption } from "@/server/services/catalog";
 import { cancelAppointmentAction, completeAppointmentAction, rescheduleAction, startAppointmentAction } from "@/server/actions/services";
@@ -94,13 +96,21 @@ function Body({ a, onClose, perms, currentUserId, providers, now }: { a: Appoint
       <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
         <dl className="grid grid-cols-[7rem_1fr] gap-y-3 text-sm">
           <dt className="text-muted-foreground">Cliente</dt>
-          <dd className="font-medium">{a.customer.name}</dd>
+          <dd className="font-medium">
+            {perms.customers ? (
+              <Link href={`/clientes/${a.customer.id}`} className="underline-offset-4 hover:underline">
+                {a.customer.name}
+              </Link>
+            ) : (
+              a.customer.name
+            )}
+          </dd>
           {a.customer.phone && (
             <>
               <dt className="text-muted-foreground">Telefone</dt>
               <dd>
                 <a href={`tel:${a.customer.phone}`} className="inline-flex items-center gap-1.5 underline-offset-4 hover:underline">
-                  <Phone className="size-3.5" /> {a.customer.phone}
+                  <Phone className="size-3.5" /> {formatPhone(a.customer.phone)}
                 </a>
               </dd>
             </>

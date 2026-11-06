@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, atLocal, formatDuration, localParts, localRange, longDate, weekStart, weekdayShort } from "./time";
+import { addDays, agoLabel, atLocal, formatDuration, formatLocalDate, formatLocalDateTime, localParts, localRange, longDate, weekStart, weekdayShort } from "./time";
 
 describe("horário de Brasília", () => {
   it("converte ida e volta", () => {
@@ -26,5 +26,20 @@ describe("horário de Brasília", () => {
     expect(formatDuration(90)).toBe("1 h 30 min");
     expect(formatDuration(60)).toBe("1 h");
     expect(formatDuration(45)).toBe("45 min");
+  });
+});
+
+describe("datas relativas", () => {
+  const now = new Date("2025-04-30T15:00:00Z"); // 12:00 em Brasília
+  it("conta dias no calendário local", () => {
+    expect(agoLabel("2025-04-30T03:30:00Z", now)).toBe("hoje"); // 00:30 local do mesmo dia
+    expect(agoLabel("2025-04-30T02:30:00Z", now)).toBe("ontem"); // 23:30 local do dia anterior
+    expect(agoLabel("2025-04-18T12:00:00Z", now)).toBe("há 12 dias");
+    expect(agoLabel("2025-01-15T12:00:00Z", now)).toBe("há 3 meses");
+    expect(agoLabel("2023-04-01T12:00:00Z", now)).toBe("há 2 anos");
+  });
+  it("formata no fuso do negócio", () => {
+    expect(formatLocalDate("2025-03-03T02:00:00Z")).toBe("02/03/2025");
+    expect(formatLocalDateTime("2025-03-03T12:00:00Z")).toBe("03/03/2025 às 09:00");
   });
 });

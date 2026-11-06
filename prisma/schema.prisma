@@ -224,6 +224,9 @@ model Sale {
   discount      Decimal    @default(0) @db.Decimal(14, 2)
   total         Decimal    @db.Decimal(14, 2)
   paymentMethod String
+  /// Opcional: venda de balcão não precisa identificar o comprador.
+  customerId    String?
+  customer      Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
   createdAt     DateTime   @default(now())
   cancelledAt   DateTime?
   cancelledById String?
@@ -232,6 +235,7 @@ model Sale {
 
   @@index([createdAt])
   @@index([sellerId, createdAt])
+  @@index([customerId])
 }
 
 model SaleItem {
@@ -252,13 +256,19 @@ model SaleItem {
 model Customer {
   id           String        @id @default(cuid())
   name         String
+  /// Só dígitos (DDD + número). Exibido formatado.
   phone        String?
   email        String?
   notes        String?
   createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @default(now()) @updatedAt
+  /// LGPD: dados pessoais apagados a pedido do cliente; o histórico financeiro fica.
+  anonymizedAt DateTime?
   appointments Appointment[]
+  sales        Sale[]
 
   @@index([name])
+  @@index([phone])
 }
 
 model Service {
@@ -295,6 +305,7 @@ model Appointment {
   @@index([startsAt])
   @@index([providerId, startsAt])
   @@index([status, startsAt])
+  @@index([customerId, startsAt])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -323,7 +334,8 @@ model LedgerEntry {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Auditoria — quem fez o quê e quando. Só cresce: nada é editado ou apagado.
+// Auditoria — quem fez o quê e quando. Só cresce: nada é editado ou apagado,
+// exceto a remoção de dados pessoais de um cliente a pedido dele (LGPD).
 // ─────────────────────────────────────────────────────────────
 
 model AuditLog {

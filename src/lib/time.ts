@@ -72,3 +72,33 @@ export function formatDuration(min: number) {
   const m = min % 60;
   return h && m ? `${h} h ${m} min` : h ? `${h} h` : `${m} min`;
 }
+
+/** Instante ISO → "03/03/2025" no fuso do negócio. */
+export function formatLocalDate(iso: string) {
+  const { date } = localParts(new Date(iso));
+  return date.split("-").reverse().join("/");
+}
+
+/** Instante ISO → "03/03/2025 às 09:00". */
+export function formatLocalDateTime(iso: string) {
+  const { date, time } = localParts(new Date(iso));
+  return `${date.split("-").reverse().join("/")} às ${time}`;
+}
+
+/** Dias corridos (no calendário local) entre dois instantes: hoje = 0. */
+export function daysBetween(fromIso: string, to: Date) {
+  const a = new Date(`${localParts(new Date(fromIso)).date}T12:00:00Z`).getTime();
+  const b = new Date(`${localParts(to).date}T12:00:00Z`).getTime();
+  return Math.round((b - a) / 86_400_000);
+}
+
+/** "hoje", "ontem", "há 12 dias", "há 3 meses", "há 1 ano". */
+export function agoLabel(fromIso: string, now: Date) {
+  const d = daysBetween(fromIso, now);
+  if (d <= 0) return "hoje";
+  if (d === 1) return "ontem";
+  if (d < 60) return `há ${d} dias`;
+  if (d < 365) return `há ${Math.floor(d / 30)} meses`;
+  const y = Math.floor(d / 365);
+  return `há ${y} ano${y > 1 ? "s" : ""}`;
+}

@@ -34,6 +34,13 @@ describe("can()", () => {
     expect(can("prestador", "produto", "ver")).toBe(false);
   });
 
+  it("cadastro de clientes é de quem agenda (gerente e admin)", () => {
+    expect(can("gerente", "cliente", "gerenciar")).toBe(true);
+    expect(can("admin", "cliente", "ver")).toBe(true);
+    expect(can("vendedor", "cliente", "ver")).toBe(false);
+    expect(can("prestador", "cliente", "ver")).toBe(false);
+  });
+
   it("sem cargo não pode nada", () => {
     expect(can("", "produto", "ver")).toBe(false);
     expect(can(undefined, "dashboardProdutos", "ver")).toBe(false);
@@ -48,9 +55,9 @@ describe("can()", () => {
 describe("menu por cargo", () => {
   it("cada cargo vê só o seu menu", () => {
     expect(hrefs("admin")).toEqual([
-      "/dashboard", "/produtos", "/vendas", "/servicos", "/agenda", "/financeiro", "/config/usuarios", "/config/auditoria",
+      "/dashboard", "/produtos", "/vendas", "/servicos", "/agenda", "/clientes", "/financeiro", "/config/usuarios", "/config/auditoria",
     ]);
-    expect(hrefs("gerente")).toEqual(["/dashboard", "/produtos", "/vendas", "/servicos", "/agenda", "/financeiro"]);
+    expect(hrefs("gerente")).toEqual(["/dashboard", "/produtos", "/vendas", "/servicos", "/agenda", "/clientes", "/financeiro"]);
     expect(hrefs("vendedor")).toEqual(["/dashboard", "/produtos", "/vendas"]);
     expect(hrefs("prestador")).toEqual(["/dashboard", "/servicos", "/agenda"]);
   });

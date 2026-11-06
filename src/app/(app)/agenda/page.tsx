@@ -18,6 +18,7 @@ export default async function AgendaPage({ searchParams }: Props) {
     seeAll: can(user.role, "agenda", "verTodas"),
     schedule: can(user.role, "agenda", "agendar"),
     complete: can(user.role, "agenda", "concluir"),
+    customers: can(user.role, "cliente", "ver"),
   };
   const today = localParts(new Date()).date;
   const day = isISODate(params.dia) ? params.dia : today;

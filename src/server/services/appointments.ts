@@ -14,6 +14,7 @@ import { prisma } from "@/lib/db";
 import { PAYMENT_METHODS, REVERSAL_CATEGORY, type PaymentMethod } from "@/lib/finance-shared";
 import { DomainError } from "./errors";
 import { writeAudit } from "./audit";
+import { resolveCustomer, type CustomerRef } from "./customers";
 import { formatBRL } from "@/lib/format";
 
 type Tx = Prisma.TransactionClient;
@@ -52,21 +53,7 @@ async function assertProvider(tx: Tx, providerId: string) {
   }
 }
 
-export type CustomerRef = { id: string } | { name: string; phone?: string };
-
-async function resolveCustomer(tx: Tx, c: CustomerRef) {
-  if ("id" in c) {
-    const found = await tx.customer.findUnique({ where: { id: c.id } });
-    if (!found) throw new DomainError("Cliente não encontrado.", { customer: "Cliente não encontrado" });
-    return found.id;
-  }
-  const name = c.name.trim();
-  if (name.length < 2) throw new DomainError("Informe o nome do cliente.", { customer: "Obrigatório" });
-  const phone = c.phone?.replace(/\D/g, "") || null;
-  // Reaproveita cliente com mesmo nome e telefone.
-  const existing = await tx.customer.findFirst({ where: { name: { equals: name, mode: "insensitive" }, phone } });
-  return (existing ?? (await tx.customer.create({ data: { name, phone } }))).id;
-}
+export type { CustomerRef } from "./customers";
 
 export type ScheduleInput = {
   serviceId: string;

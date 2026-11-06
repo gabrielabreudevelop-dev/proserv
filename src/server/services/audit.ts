@@ -55,6 +55,7 @@ export const AUDIT_ENTITIES = {
   CustomFieldDefinition: "Campo personalizado",
   Service: "Serviço",
   Appointment: "Atendimento",
+  Customer: "Cliente",
   User: "Usuário",
 } as const;
 
