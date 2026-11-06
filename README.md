@@ -4,6 +4,8 @@ Sistema de gestão de produtos, serviços, vendas e finanças (Lucro/Prejuízo),
 
 **Stack:** Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · shadcn/ui · TanStack Table v8 · Prisma ORM 7 · PostgreSQL · Better Auth.
 
+**Repositório oficial:** [gabrielabreudevelop-dev/proserv](https://github.com/gabrielabreudevelop-dev/proserv)
+
 ## Rodando localmente
 
 Pré-requisitos: Node 22+ e PostgreSQL 16+.

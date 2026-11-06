@@ -12,7 +12,7 @@ Menos operação: HTTPS, domínio, prévias por pull request e escala automátic
 1. **Banco** — criar um Postgres 16+ gerenciado (Neon, Supabase ou Vercel Postgres) na
    região São Paulo (`sa-east-1`) ou a mais próxima. Ativar backup com recuperação
    point-in-time. Anotar duas URLs: a *pooled* (app) e a *direta* (migrações).
-2. **Projeto na Vercel** — importar o repositório `gabriellopesabreu/proserv`.
+2. **Projeto na Vercel** — importar o repositório `gabrielabreudevelop-dev/proserv`.
    - Framework: Next.js. Região das funções: `gru1` (São Paulo).
    - Build command: `prisma generate && next build` (padrão do `npm run build` já roda `postinstall`).
 3. **Variáveis de ambiente** (Production e Preview separadas):

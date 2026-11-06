@@ -7,7 +7,7 @@ marcados**. O passo a passo da publicação está em [deploy.md](./deploy.md).
 
 ### Repositório e CI
 - [ ] Vincular o GitHub ao Claude (claude.ai → Settings → Connectors) e instalar o
-      Claude GitHub App no repositório `gabriellopesabreu/proserv` — *desde a Fase 0*
+      Claude GitHub App no repositório `gabrielabreudevelop-dev/proserv` — *desde a Fase 0*
 - [ ] Enviar os commits para o GitHub (push da branch `main`)
 - [ ] Primeira execução do CI **no GitHub** verde (lint, tipos, 77 testes, build e 55 testes
       de navegador). Localmente tudo passa; no GitHub ainda não rodou nenhuma vez.
