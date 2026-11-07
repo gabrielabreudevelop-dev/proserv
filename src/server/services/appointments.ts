@@ -15,6 +15,8 @@ import { PAYMENT_METHODS, REVERSAL_CATEGORY, type PaymentMethod } from "@/lib/fi
 import { DomainError } from "./errors";
 import { writeAudit } from "./audit";
 import { resolveCustomer, type CustomerRef } from "./customers";
+import { linkScheduled, onCancelled, onCompleted } from "./followups";
+import { localParts } from "@/lib/time";
 import { formatBRL } from "@/lib/format";
 
 type Tx = Prisma.TransactionClient;
@@ -62,6 +64,8 @@ export type ScheduleInput = {
   startsAt: Date;
   notes?: string;
   userId: string;
+  /** Agendado a partir de um retorno: liga o atendimento a ele. */
+  followUpId?: string;
 };
 
 export async function scheduleAppointment(input: ScheduleInput) {
@@ -73,7 +77,7 @@ export async function scheduleAppointment(input: ScheduleInput) {
     await lockProvider(tx, input.providerId);
     await assertFree(tx, input.providerId, input.startsAt, endsAt);
     const customerId = await resolveCustomer(tx, input.customer);
-    return tx.appointment.create({
+    const appt = await tx.appointment.create({
       data: {
         serviceId: service.id,
         providerId: input.providerId,
@@ -84,6 +88,8 @@ export async function scheduleAppointment(input: ScheduleInput) {
         createdById: input.userId,
       },
     });
+    await linkScheduled(tx, appt, input.followUpId);
+    return appt;
   });
 }
 
@@ -127,12 +133,15 @@ export async function completeAppointment({
   chargedPrice,
   paymentMethod,
   actor,
+  followUpOn,
   now = new Date(),
 }: {
   id: string;
   chargedPrice?: string;
   paymentMethod: PaymentMethod;
   actor: { id: string; seeAll: boolean };
+  /** Retorno: omitido = regra do serviço; null = sem retorno; "YYYY-MM-DD" = data escolhida. */
+  followUpOn?: string | null;
   now?: Date;
 }) {
   if (!(paymentMethod in PAYMENT_METHODS)) throw new DomainError("Forma de pagamento inválida.");
@@ -165,6 +174,7 @@ export async function completeAppointment({
       entityId: a.id,
       summary: `Concluiu ${description}: cobrado ${formatBRL(price.toString())} (${PAYMENT_METHODS[paymentMethod]})${price.eq(a.service.price) ? "" : ` · tabela ${formatBRL(a.service.price.toString())}`}`,
     });
+    await onCompleted(tx, a, { day: localParts(occurredAt).date, next: followUpOn, actorId: actor.id, now });
     return tx.appointment.update({
       where: { id },
       data: { status: "CONCLUIDO", chargedPrice: price, paymentMethod, completedAt: now },
@@ -207,6 +217,7 @@ export async function cancelAppointment({ id, reason, actor, now = new Date() }:
       entityId: id,
       summary: `Cancelou ${a.service.name} — ${a.customer.name}${a.status === "CONCLUIDO" ? " (concluído, valores estornados)" : ""}: ${reason.trim()}`,
     });
+    await onCancelled(tx, a, { wasCompleted: a.status === "CONCLUIDO", now });
     return tx.appointment.update({ where: { id }, data: { status: "CANCELADO", cancelledAt: now, cancelReason: reason.trim() } });
   });
 }
@@ -216,7 +227,7 @@ export type AppointmentRow = {
   startsAt: string;
   endsAt: string;
   status: "AGENDADO" | "EM_ANDAMENTO" | "CONCLUIDO" | "CANCELADO";
-  service: { id: string; name: string; durationMin: number; price: string };
+  service: { id: string; name: string; durationMin: number; price: string; returnAfterMonths: number | null; returnServiceName: string | null };
   provider: { id: string; name: string };
   customer: { id: string; name: string; phone: string | null };
   chargedPrice: string | null;
@@ -242,7 +253,7 @@ async function queryAppointments(where: Prisma.AppointmentWhereInput, take = 100
   const rows = await prisma.appointment.findMany({
     where,
     include: {
-      service: { select: { id: true, name: true, durationMin: true, price: true } },
+      service: { select: { id: true, name: true, durationMin: true, price: true, returnAfterMonths: true, returnService: { select: { name: true } } } },
       provider: { select: { id: true, name: true } },
       customer: { select: { id: true, name: true, phone: true } },
     },
@@ -254,7 +265,14 @@ async function queryAppointments(where: Prisma.AppointmentWhereInput, take = 100
     startsAt: a.startsAt.toISOString(),
     endsAt: a.endsAt.toISOString(),
     status: a.status,
-    service: { ...a.service, price: a.service.price.toString() },
+    service: {
+      id: a.service.id,
+      name: a.service.name,
+      durationMin: a.service.durationMin,
+      price: a.service.price.toString(),
+      returnAfterMonths: a.service.returnAfterMonths,
+      returnServiceName: a.service.returnService?.name ?? null,
+    },
     provider: a.provider,
     customer: a.customer,
     chargedPrice: a.chargedPrice?.toString() ?? null,

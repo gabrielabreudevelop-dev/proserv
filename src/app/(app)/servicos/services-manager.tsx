@@ -51,6 +51,7 @@ export function ServicesManager({ services, perms }: { services: ServiceRow[]; p
               <TableHead className="text-right">Valor</TableHead>
               {perms.seeCost && <TableHead className="text-right">Custo estimado</TableHead>}
               {perms.seeCost && <TableHead className="text-right">Margem</TableHead>}
+              <TableHead>Retorno</TableHead>
               <TableHead className="text-right">Atendimentos</TableHead>
               {perms.manage && (
                 <TableHead className="w-24">
@@ -62,7 +63,7 @@ export function ServicesManager({ services, perms }: { services: ServiceRow[]; p
           <TableBody>
             {services.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={7} className="h-28 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="h-28 text-center text-muted-foreground">
                   Nenhum serviço cadastrado.
                 </TableCell>
               </TableRow>
@@ -88,6 +89,16 @@ export function ServicesManager({ services, perms }: { services: ServiceRow[]; p
                       {margin === null ? "—" : formatPct(margin)}
                     </TableCell>
                   )}
+                  <TableCell className="whitespace-normal text-sm">
+                    {s.returnAfterMonths ? (
+                      <>
+                        {monthsLabel(s.returnAfterMonths)}
+                        <span className="block text-xs text-muted-foreground">{s.returnServiceName ?? "Mesmo serviço"}</span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">{s.appointmentsCount}</TableCell>
                   {perms.manage && (
                     <TableCell className="py-1 text-right">
@@ -110,13 +121,28 @@ export function ServicesManager({ services, perms }: { services: ServiceRow[]; p
           O custo estimado (insumos, comissão) entra como despesa toda vez que um atendimento é concluído.
         </p>
       )}
-      <ServiceDialog editing={editing} onClose={() => setEditing(null)} />
+      <p className="text-xs text-muted-foreground">
+        Com retorno configurado, concluir um atendimento já programa quando voltar a falar com o cliente (tela Retornos).
+      </p>
+      <ServiceDialog editing={editing} onClose={() => setEditing(null)} services={services} />
     </div>
   );
 }
 
-function ServiceDialog({ editing, onClose }: { editing: Editing; onClose: () => void }) {
+const RETURN_MONTHS = [1, 2, 3, 4, 6, 9, 12, 18, 24];
+const monthsLabel = (m: number) => (m === 1 ? "Em 1 mês" : `Em ${m} meses`);
+
+function ServiceDialog({ editing, onClose, services }: { editing: Editing; onClose: () => void; services: ServiceRow[] }) {
   const service = editing?.mode === "edit" ? editing.service : null;
+  return (
+    <Dialog open={editing !== null} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>{editing && <ServiceForm key={service?.id ?? "new"} service={service} onClose={onClose} services={services} />}</DialogContent>
+    </Dialog>
+  );
+}
+
+function ServiceForm({ service, onClose, services }: { service: ServiceRow | null; onClose: () => void; services: ServiceRow[] }) {
+  const [months, setMonths] = useState(service?.returnAfterMonths ? String(service.returnAfterMonths) : "");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, start] = useTransition();
 
@@ -134,6 +160,8 @@ function ServiceDialog({ editing, onClose }: { editing: Editing; onClose: () => 
       price: fd.get("price"),
       estimatedCost: fd.get("estimatedCost"),
       durationMin: fd.get("durationMin"),
+      returnAfterMonths: fd.get("returnAfterMonths"),
+      returnServiceId: fd.get("returnServiceId") ?? "",
     };
     start(async () => {
       const res = service ? await updateServiceAction(service.id, payload) : await createServiceAction(payload);
@@ -148,11 +176,10 @@ function ServiceDialog({ editing, onClose }: { editing: Editing; onClose: () => 
   }
 
   const durations = service && !DURATIONS.includes(service.durationMin) ? [...DURATIONS, service.durationMin].sort((a, b) => a - b) : DURATIONS;
+  const monthOptions = service?.returnAfterMonths && !RETURN_MONTHS.includes(service.returnAfterMonths) ? [...RETURN_MONTHS, service.returnAfterMonths].sort((a, b) => a - b) : RETURN_MONTHS;
+  const targets = services.filter((x) => x.active && x.id !== service?.id);
 
   return (
-    <Dialog open={editing !== null} onOpenChange={(o) => !o && close()}>
-      <DialogContent>
-        {editing && (
           <form onSubmit={submit} className="grid gap-4" noValidate>
             <DialogHeader>
               <DialogTitle>{service ? "Editar serviço" : "Novo serviço"}</DialogTitle>
@@ -183,6 +210,30 @@ function ServiceDialog({ editing, onClose }: { editing: Editing; onClose: () => 
                 <Input name="estimatedCost" inputMode="decimal" placeholder="0,00" defaultValue={toInput(service?.estimatedCost)} />
               </Field>
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field id="svc-return" label="Retorno" hint="Quando voltar a falar com o cliente" error={errors.returnAfterMonths}>
+                <NativeSelect name="returnAfterMonths" value={months} onChange={(e) => setMonths(e.target.value)}>
+                  <option value="">Sem retorno</option>
+                  {monthOptions.map((m) => (
+                    <option key={m} value={m}>
+                      {monthsLabel(m)}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+              {months && (
+                <Field id="svc-return-service" label="Oferecer no retorno" error={errors.returnServiceId}>
+                  <NativeSelect name="returnServiceId" defaultValue={service?.returnServiceId ?? ""}>
+                    <option value="">O mesmo serviço</option>
+                    {targets.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </Field>
+              )}
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={close}>
                 Cancelar
@@ -193,8 +244,5 @@ function ServiceDialog({ editing, onClose }: { editing: Editing; onClose: () => 
               </Button>
             </DialogFooter>
           </form>
-        )}
-      </DialogContent>
-    </Dialog>
   );
 }

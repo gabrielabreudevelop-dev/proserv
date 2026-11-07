@@ -2,18 +2,19 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarPlus, GitMerge, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { BellPlus, CalendarPlus, GitMerge, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatPhone } from "@/lib/phone";
-import { localParts, minutesToTime, AGENDA_END_HOUR, AGENDA_START_HOUR, SLOT_MINUTES } from "@/lib/time";
 import type { CustomerOption, ProviderOption } from "@/server/services/catalog";
 import { createCustomerAction, eraseCustomerAction, mergeCustomersAction, updateCustomerAction } from "@/server/actions/customers";
+import { createFollowUpAction } from "@/server/actions/followups";
+import { addMonthsISO, localParts } from "@/lib/time";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Field, Textarea } from "@/components/ui/form-controls";
+import { Field, NativeSelect, Textarea } from "@/components/ui/form-controls";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ScheduleDialog, customerLabel, type ScheduleDraft, type ServiceOption } from "../agenda/schedule-dialog";
+import { ScheduleDialog, customerLabel, nextSlot, type ScheduleDraft, type ServiceOption } from "../agenda/schedule-dialog";
 
 export type EditableCustomer = { id: string; name: string; phone: string | null; email: string | null; notes: string | null };
 
@@ -97,15 +98,6 @@ function CustomerFormDialog({ open, onClose, customer }: { open: boolean; onClos
 }
 
 // ── Ações da ficha ───────────────────────────────────────
-const TIMES = Array.from({ length: ((AGENDA_END_HOUR - AGENDA_START_HOUR) * 60) / SLOT_MINUTES }, (_, i) => minutesToTime(AGENDA_START_HOUR * 60 + i * SLOT_MINUTES));
-
-/** Próximo horário cheio ou meia hora, dentro do expediente da agenda. */
-function nextSlot() {
-  const { date, minutes } = localParts(new Date());
-  const t = TIMES.find((x) => Number(x.slice(0, 2)) * 60 + Number(x.slice(3)) > minutes);
-  return t ? { date, time: t } : { date: localParts(new Date(Date.now() + 86_400_000)).date, time: "09:00" };
-}
-
 type Dialogs = "edit" | "merge" | "erase" | null;
 
 export function CustomerActions({
@@ -282,5 +274,73 @@ function EraseDialog({ open, onClose, customer }: { open: boolean; onClose: () =
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Programar retorno à mão ──────────────────────────────
+export function ProgramFollowUpButton({ customerId, services }: { customerId: string; services: { id: string; name: string }[] }) {
+  const [open, setOpen] = useState(false);
+  const [today] = useState(() => localParts(new Date()).date);
+  const [serviceId, setServiceId] = useState(services[0]?.id ?? "");
+  const [dueOn, setDueOn] = useState(() => addMonthsISO(localParts(new Date()).date, 6));
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [pending, start] = useTransition();
+  if (!services.length) return null;
+
+  function close() {
+    setErrors({});
+    setOpen(false);
+  }
+
+  return (
+    <>
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+        <BellPlus /> Programar retorno
+      </Button>
+      <Dialog open={open} onOpenChange={(o) => !o && close()}>
+        <DialogContent className="sm:max-w-md">
+          <form
+            className="grid gap-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              start(async () => {
+                const res = await createFollowUpAction({ customerId, serviceId, dueOn });
+                if (!res.ok) {
+                  setErrors(res.fieldErrors ?? {});
+                  return void toast.error(res.error);
+                }
+                toast.success(`Retorno programado para ${dueOn.split("-").reverse().join("/")}`);
+                close();
+              });
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Programar retorno</DialogTitle>
+              <DialogDescription>Para lembrar de procurar o cliente numa data combinada (cliente antigo, revisão anual...).</DialogDescription>
+            </DialogHeader>
+            <Field id="pf-service" label="Serviço" required error={errors.serviceId}>
+              <NativeSelect value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+                {services.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
+            <Field id="pf-date" label="Falar com o cliente em" required error={errors.dueOn}>
+              <Input type="date" value={dueOn} min={today} onChange={(e) => setDueOn(e.target.value)} />
+            </Field>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={close}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={pending || !dueOn}>
+                {pending && <Loader2 className="animate-spin" />} Programar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { DomainError } from "./errors";
 import { writeAudit } from "./audit";
+import { mergeFollowUps } from "./followups";
 
 type Tx = Prisma.TransactionClient;
 const D = (v: string | number | Prisma.Decimal) => new Prisma.Decimal(v);
@@ -301,6 +302,7 @@ export async function mergeCustomers({ sourceId, targetId, actorId }: { sourceId
 
     const appts = await tx.appointment.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
     const sales = await tx.sale.updateMany({ where: { customerId: sourceId }, data: { customerId: targetId } });
+    await mergeFollowUps(tx, sourceId, targetId, new Date());
     const notes = [target.notes, source.notes].filter(Boolean).join("\n") || null;
     await tx.customer.update({
       where: { id: targetId },
@@ -332,6 +334,9 @@ export async function eraseCustomer({ id, actorId }: { id: string; actorId: stri
     // O nome também aparece em textos já gravados: descrição dos lançamentos e frases da auditoria.
     const related = [id, ...appts, ...sales];
     await tx.$executeRaw`UPDATE "AuditLog" SET summary = replace(summary, ${c.name}, ${REMOVED_NAME.toLowerCase()}), changes = CASE WHEN entity = 'Customer' THEN NULL ELSE changes END WHERE "entityId" IN (${Prisma.join(related)})`;
+
+    // Retornos e anotações de contato não são contabilidade: saem por inteiro.
+    await tx.followUp.deleteMany({ where: { customerId: id } });
 
     if (appts.length === 0 && sales.length === 0) {
       await tx.customer.delete({ where: { id } });

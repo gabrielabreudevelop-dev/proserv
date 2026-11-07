@@ -1,6 +1,7 @@
 import {
   BadgeDollarSign,
   ScrollText,
+  BellRing,
   CalendarDays,
   Contact,
   LayoutDashboard,
@@ -47,6 +48,7 @@ export const NAV: NavSection[] = [
       { href: "/servicos", label: "Serviços", icon: Wrench, anyOf: [{ resource: "servico", action: "ver" }] },
       { href: "/agenda", label: "Agenda", icon: CalendarDays, anyOf: [{ resource: "agenda", action: "ver" }] },
       { href: "/clientes", label: "Clientes", icon: Contact, anyOf: [{ resource: "cliente", action: "ver" }] },
+      { href: "/retornos", label: "Retornos", icon: BellRing, anyOf: [{ resource: "cliente", action: "ver" }] },
     ],
   },
   {

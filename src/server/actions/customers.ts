@@ -15,7 +15,7 @@ const customerSchema = z.object({
 });
 
 function revalidate() {
-  for (const p of ["/agenda", "/vendas"]) revalidatePath(p);
+  for (const p of ["/agenda", "/vendas", "/retornos"]) revalidatePath(p);
   revalidatePath("/clientes", "layout"); // lista e fichas
 }
 

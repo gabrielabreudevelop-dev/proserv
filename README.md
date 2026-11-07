@@ -84,7 +84,7 @@ As permissões vivem em um único arquivo, `src/lib/auth/permissions.ts`, usado 
 - **Usuários** (`/config/usuarios`, só admin): criar com senha provisória, combinar cargos, bloquear (encerra as sessões na hora), gerar nova senha. Ninguém remove o próprio cargo de admin nem bloqueia a si mesmo, e o sistema nunca fica sem administrador ativo. Cada pessoa troca a própria senha em **Minha conta**.
 - **Auditoria** (`/config/auditoria`, só admin): quem fez o quê e quando, com antes → depois nas edições. Vendas, cancelamentos, estoque, despesas e atendimentos gravam a auditoria na mesma transação; configurações gravam logo após o sucesso. O registro só cresce.
 - **Celular**: menu lateral vira botão de menu abaixo de 768 px.
-- **Testes de navegador**: `e2e/` com Playwright Test (65 testes, um arquivo por fase), rodando no CI a cada push contra o build de produção.
+- **Testes de navegador**: `e2e/` com Playwright Test (75 testes, um arquivo por fase), rodando no CI a cada push contra o build de produção.
 - **Produção preparada, não publicada**: cabeçalhos de segurança (CSP, HSTS), `/api/health`, `Dockerfile`, Dependabot e guia em [docs/deploy.md](docs/deploy.md).
 
 ## Clientes
@@ -95,6 +95,15 @@ As permissões vivem em um único arquivo, `src/lib/auth/permissions.ts`, usado 
 - **Juntar cadastros**: move atendimentos e compras para o cadastro que fica e aproveita telefone, e-mail e observações.
 - **Excluir dados pessoais (LGPD)**: sem histórico, apaga o cadastro. Com histórico, apaga nome, telefone, e-mail e observações (também das observações dos atendimentos, das descrições do livro-razão e das frases da auditoria) e mantém datas e valores como "Cliente removido".
 - **Vendas**: o caixa tem um campo opcional de cliente (existente ou novo). Venda de balcão continua sem identificação. A lista de vendas mostra o cliente.
+
+## Retornos
+
+- **Regra no serviço** (`/servicos`): "retorno em N meses" e qual serviço oferecer (o mesmo ou outro — ex.: instalação → manutenção preventiva em 6 meses).
+- **Nasce ao concluir**: o atendimento concluído programa o retorno para o dia do atendimento + N meses (fim de mês ajustado). Na conclusão dá para mudar a data, dispensar ou programar um retorno num serviço sem regra.
+- **Ciclo**: pendente → agendado (ao marcar o serviço do retorno) → realizado (ao concluir, que já programa o próximo), ou encerrado com motivo. Cancelar o atendimento marcado devolve o retorno para pendente; cancelar o concluído que gerou um retorno encerra esse retorno. Um cliente tem no máximo um retorno aberto por serviço.
+- **Tela** (`/retornos`, gerente e admin): atrasados, esta semana, próximos 30 dias, mais adiante, agendados e histórico. **Contatar** abre a mensagem pronta para o WhatsApp (o envio é manual) e registra o resultado: não respondeu, falar depois (nova data), vai agendar (abre a agenda) ou não quer (encerra). Também: agendar direto, mudar data, encerrar.
+- **Previsibilidade**: retornos em 30 dias e valor de tabela em potencial, na tela e no dashboard de Serviços. A ficha do cliente mostra os retornos previstos e permite programar um à mão.
+- Juntar cadastros leva os retornos (um aberto por serviço); excluir dados pessoais apaga os retornos e as anotações de contato.
 
 ## Estrutura
 
@@ -126,4 +135,5 @@ prisma.config.ts           configuração do Prisma CLI
 - [x] Fase 3 — Serviços, agenda e dashboard
 - [x] Fase 4 — Auditoria, usuários, celular, testes de navegador no CI, produção preparada
 - [x] Clientes — lista, ficha com histórico, juntar cadastros, LGPD e cliente opcional na venda
+- [x] Retornos — regra por serviço, programação automática ao concluir, lista de contatos com WhatsApp
 - [ ] Publicação — em aberto até resolver as [pendências](docs/pendencias.md)

@@ -6,7 +6,7 @@ import { CalendarClock, CheckCircle2, Loader2, Phone, Play, XCircle } from "luci
 import { toast } from "sonner";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/lib/finance-shared";
 import { formatBRL, parseDecimalInput } from "@/lib/format";
-import { AGENDA_END_HOUR, AGENDA_START_HOUR, SLOT_MINUTES, localParts, longDate, minutesToTime } from "@/lib/time";
+import { AGENDA_END_HOUR, AGENDA_START_HOUR, SLOT_MINUTES, addMonthsISO, localParts, longDate, minutesToTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { formatPhone } from "@/lib/phone";
 import type { AppointmentRow } from "@/server/services/appointments";
@@ -247,16 +247,23 @@ function CompleteForm({
   pending: boolean;
   errors: Record<string, string>;
   onCancel: () => void;
-  onSubmit: (p: { chargedPrice: string; paymentMethod: PaymentMethod }) => void;
+  onSubmit: (p: { chargedPrice: string; paymentMethod: PaymentMethod; followUpOn?: string | null }) => void;
 }) {
   const [price, setPrice] = useState(a.service.price.replace(".", ","));
   const [payment, setPayment] = useState<PaymentMethod | null>(null);
+  const rule = a.service.returnAfterMonths;
+  // Dia do atendimento (ou hoje, se concluído antes do horário) + meses da regra do serviço.
+  const [day] = useState(() => localParts(new Date(Math.min(Date.parse(a.startsAt), Date.now()))).date);
+  const [withReturn, setWithReturn] = useState(rule !== null);
+  const [returnOn, setReturnOn] = useState(() => addMonthsISO(day, rule ?? 6));
   return (
     <form
       className="space-y-4 rounded-lg border border-primary/40 p-4"
       onSubmit={(e) => {
         e.preventDefault();
-        if (payment) onSubmit({ chargedPrice: price, paymentMethod: payment });
+        // Com regra: desmarcado = sem retorno. Sem regra: marcado = retorno à mão.
+        const followUpOn = withReturn ? returnOn : rule !== null ? null : undefined;
+        if (payment) onSubmit({ chargedPrice: price, paymentMethod: payment, followUpOn });
       }}
     >
       <h3 className="text-sm font-medium">Concluir e receber</h3>
@@ -280,11 +287,27 @@ function CompleteForm({
         </div>
         {errors.paymentMethod && <p className="mt-1 text-xs text-destructive">{errors.paymentMethod}</p>}
       </fieldset>
+      <fieldset className="space-y-2 rounded-md bg-muted/50 p-3">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input type="checkbox" checked={withReturn} onChange={(e) => setWithReturn(e.target.checked)} className="size-4 accent-primary" />
+          Programar retorno
+        </label>
+        {withReturn && (
+          <Field id="cp-return" label={`Falar com o cliente sobre ${a.service.returnServiceName ?? a.service.name} em`} error={errors.followUpOn}>
+            <Input type="date" value={returnOn} min={day} onChange={(e) => setReturnOn(e.target.value)} />
+          </Field>
+        )}
+        <p className="text-xs text-muted-foreground">
+          {rule !== null
+            ? `O serviço pede retorno em ${rule} ${rule > 1 ? "meses" : "mês"}. Ajuste a data se o cliente combinou outra.`
+            : "Este serviço não tem retorno padrão. Marque se o cliente precisa voltar."}
+        </p>
+      </fieldset>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>
           Voltar
         </Button>
-        <Button type="submit" disabled={pending || !payment}>
+        <Button type="submit" disabled={pending || !payment || (withReturn && !returnOn)}>
           {pending && <Loader2 className="animate-spin" />} Confirmar conclusão
         </Button>
       </div>

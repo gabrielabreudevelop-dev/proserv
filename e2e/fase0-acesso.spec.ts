@@ -2,16 +2,16 @@ import { expect, test } from "@playwright/test";
 import { login, loginPause, sql, storage, type Role } from "./helpers";
 
 const MENUS: Record<Role, string[]> = {
-  admin: ["Dashboard", "Produtos", "Vendas", "Serviços", "Agenda", "Clientes", "Financeiro", "Usuários", "Auditoria"],
-  gerente: ["Dashboard", "Produtos", "Vendas", "Serviços", "Agenda", "Clientes", "Financeiro"],
+  admin: ["Dashboard", "Produtos", "Vendas", "Serviços", "Agenda", "Clientes", "Retornos", "Financeiro", "Usuários", "Auditoria"],
+  gerente: ["Dashboard", "Produtos", "Vendas", "Serviços", "Agenda", "Clientes", "Retornos", "Financeiro"],
   vendedor: ["Dashboard", "Produtos", "Vendas"],
   prestador: ["Dashboard", "Serviços", "Agenda"],
 };
 const BLOCKED: Record<Role, string[]> = {
   admin: [],
   gerente: ["/config/usuarios", "/config/auditoria"],
-  vendedor: ["/financeiro", "/agenda", "/clientes", "/config/usuarios", "/produtos/campos"],
-  prestador: ["/produtos", "/vendas", "/financeiro", "/clientes"],
+  vendedor: ["/financeiro", "/agenda", "/clientes", "/retornos", "/config/usuarios", "/produtos/campos"],
+  prestador: ["/produtos", "/vendas", "/financeiro", "/clientes", "/retornos"],
 };
 
 test.describe("sem sessão", () => {

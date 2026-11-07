@@ -5,7 +5,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatBRL } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
-import { AGENDA_END_HOUR, AGENDA_START_HOUR, SLOT_MINUTES, atLocal, formatDuration, minutesToTime } from "@/lib/time";
+import { AGENDA_END_HOUR, AGENDA_START_HOUR, SLOT_MINUTES, atLocal, formatDuration, localParts, minutesToTime } from "@/lib/time";
 import type { AppointmentRow } from "@/server/services/appointments";
 import type { CustomerOption, ProviderOption } from "@/server/services/catalog";
 import { scheduleAction } from "@/server/actions/services";
@@ -29,6 +29,7 @@ export function ScheduleDialog({
   appointments,
   presetCustomer,
   presetServiceId,
+  followUpId,
 }: {
   draft: ScheduleDraft | null;
   onClose: () => void;
@@ -40,11 +41,13 @@ export function ScheduleDialog({
   presetCustomer?: CustomerOption;
   /** Serviço que já vem escolhido (ex.: o preferido do cliente). */
   presetServiceId?: string;
+  /** Agendamento aberto por um retorno: o atendimento fica ligado a ele. */
+  followUpId?: string;
 }) {
   return (
     <Dialog open={draft !== null} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-xl">
-        {draft && <ScheduleForm key={`${draft.date}${draft.time}${draft.providerId}`} draft={draft} onClose={onClose} services={services} providers={providers} customers={customers} appointments={appointments} presetCustomer={presetCustomer} presetServiceId={presetServiceId} />}
+        {draft && <ScheduleForm key={`${draft.date}${draft.time}${draft.providerId}`} draft={draft} onClose={onClose} services={services} providers={providers} customers={customers} appointments={appointments} presetCustomer={presetCustomer} presetServiceId={presetServiceId} followUpId={followUpId} />}
       </DialogContent>
     </Dialog>
   );
@@ -59,6 +62,7 @@ function ScheduleForm({
   appointments,
   presetCustomer,
   presetServiceId,
+  followUpId,
 }: {
   draft: ScheduleDraft;
   onClose: () => void;
@@ -68,6 +72,7 @@ function ScheduleForm({
   appointments: AppointmentRow[];
   presetCustomer?: CustomerOption;
   presetServiceId?: string;
+  followUpId?: string;
 }) {
   const [serviceId, setServiceId] = useState(services.find((s) => s.id === presetServiceId)?.id ?? services[0]?.id ?? "");
   const [providerId, setProviderId] = useState(draft.providerId);
@@ -101,6 +106,7 @@ function ScheduleForm({
         time,
         ...(existing ? { customerId: existing.id } : { customerName: customerText, customerPhone: phone }),
         notes,
+        followUpId,
       });
       if (!res.ok) {
         setErrors({ ...(res.fieldErrors ?? {}), ...(res.fieldErrors?.customer ? { customerName: res.fieldErrors.customer } : {}) });
@@ -194,4 +200,13 @@ function ScheduleForm({
       </DialogFooter>
     </form>
   );
+}
+
+const SLOT_TIMES = Array.from({ length: ((AGENDA_END_HOUR - AGENDA_START_HOUR) * 60) / SLOT_MINUTES }, (_, i) => minutesToTime(AGENDA_START_HOUR * 60 + i * SLOT_MINUTES));
+
+/** Próximo horário cheio ou meia hora, dentro do expediente da agenda. */
+export function nextSlot() {
+  const { date, minutes } = localParts(new Date());
+  const t = SLOT_TIMES.find((x) => Number(x.slice(0, 2)) * 60 + Number(x.slice(3)) > minutes);
+  return t ? { date, time: t } : { date: localParts(new Date(Date.now() + 86_400_000)).date, time: "09:00" };
 }

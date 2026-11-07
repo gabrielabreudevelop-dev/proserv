@@ -9,7 +9,7 @@ marcados**. O passo a passo da publicação está em [deploy.md](./deploy.md).
 - [ ] Vincular o GitHub ao Claude (claude.ai → Settings → Connectors) e instalar o
       Claude GitHub App no repositório `gabrielabreudevelop-dev/proserv` — *desde a Fase 0*
 - [ ] Enviar os commits para o GitHub (push da branch `main`)
-- [ ] Primeira execução do CI **no GitHub** verde (lint, tipos, 91 testes, build e 65 testes
+- [ ] Primeira execução do CI **no GitHub** verde (lint, tipos, 100 testes, build e 75 testes
       de navegador). Localmente tudo passa; no GitHub ainda não rodou nenhuma vez.
 
 ### Decisões de negócio a confirmar (de preferência com o contador)
@@ -25,11 +25,15 @@ marcados**. O passo a passo da publicação está em [deploy.md](./deploy.md).
       (vê nome e telefone na busca) e o prestador vê só o cliente de cada atendimento — *Clientes*
 - [ ] "Sumido" = mais de 60 dias sem atendimento nem compra e nada agendado — *Clientes*
 - [ ] Excluir dados pessoais a pedido também apaga o nome das frases da auditoria — *Clientes*
+- [ ] Retornos: tela só para gerente e admin; o prestador ajusta ou dispensa o retorno ao concluir — *Retornos*
+- [ ] Regras de retorno iniciais (instalação → manutenção em 6 meses, limpeza a cada 3, manutenção a cada 6)
+      são exemplos: conferir com a prática da empresa — *Retornos*
 
 ### Aceite
 - [ ] Aceite da agenda e do dashboard (critério de saída da Fase 3)
 - [ ] Aceite da gestão de usuários, auditoria e menu no celular (Fase 4)
 - [ ] Aceite da tela de clientes e do cliente na venda
+- [ ] Aceite dos retornos (regra no serviço, conclusão, tela de contatos, dashboard)
 
 ### Hospedagem
 - [ ] Escolher a opção: **A. Vercel + Postgres gerenciado** (recomendada) ou B. Docker em VPS
@@ -49,6 +53,8 @@ marcados**. O passo a passo da publicação está em [deploy.md](./deploy.md).
 - [ ] Monitor externo chamando `/api/health` a cada 5 minutos
 - [ ] Teste mensal de restauração de backup
 - [x] Tela de clientes, com histórico, juntar cadastros e exclusão de dados (LGPD)
+- [ ] Envio automático de lembretes de retorno pelo WhatsApp (exige a API oficial do WhatsApp
+      Business, paga e com aprovação da Meta). Hoje a mensagem sai pronta e o envio é manual
 - [ ] Migrar a tabela de produtos para o TanStack Table v9 quando o shadcn atualizar o exemplo
 
 ## Fora do escopo do MVP

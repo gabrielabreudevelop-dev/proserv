@@ -1,12 +1,12 @@
 import { cache } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarClock, Mail, MessageCircle, Phone, ShieldOff } from "lucide-react";
+import { ArrowLeft, BellRing, CalendarClock, Mail, MessageCircle, Phone, ShieldOff } from "lucide-react";
 import { requirePermission } from "@/lib/auth/guards";
 import { can } from "@/lib/auth/permissions";
 import { formatBRL } from "@/lib/format";
 import { formatPhone, whatsappUrl } from "@/lib/phone";
-import { agoLabel, formatLocalDate, formatLocalDateTime } from "@/lib/time";
+import { agoLabel, diffDaysISO, formatLocalDate, formatLocalDateTime, localParts } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { Kpi } from "@/components/month-picker";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { listProviders, listServices } from "@/server/services/catalog";
 import { getCustomerDetail, listCustomerOptions } from "@/server/services/customers";
-import { CustomerActions } from "../customer-dialogs";
+import { listFollowUps } from "@/server/services/followups";
+import { CustomerActions, ProgramFollowUpButton } from "../customer-dialogs";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -42,11 +43,13 @@ export default async function ClientePage({ params }: Props) {
 
   const manage = can(user.role, "cliente", "gerenciar") && !c.anonymized;
   const canSchedule = can(user.role, "agenda", "agendar") && !c.anonymized;
-  const [services, providers, others] = await Promise.all([
-    canSchedule ? listServices({ includeCost: false }) : Promise.resolve([]),
+  const [services, providers, others, followUps] = await Promise.all([
+    canSchedule || manage ? listServices({ includeCost: false }) : Promise.resolve([]),
     canSchedule ? listProviders() : Promise.resolve([]),
     manage ? listCustomerOptions() : Promise.resolve([]),
+    listFollowUps({ customerId: c.id, now }),
   ]);
+  const today = localParts(now).date;
 
   const s = c.stats;
   const upcoming = c.appointments.filter((a) => (a.status === "AGENDADO" || a.status === "EM_ANDAMENTO") && new Date(a.endsAt) >= now).reverse();
@@ -144,6 +147,53 @@ export default async function ClientePage({ params }: Props) {
           <p className={cn("px-5 py-4 text-sm whitespace-pre-line", !c.notes && "text-muted-foreground")}>{c.notes ?? "Sem observações."}</p>
         </section>
       </div>
+
+      <section aria-labelledby="retornos" className="mb-8 rounded-xl border">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-2.5">
+          <h2 id="retornos" className="flex items-center gap-2 text-sm font-medium">
+            <BellRing className="size-4" aria-hidden /> Retornos previstos
+          </h2>
+          {manage && <ProgramFollowUpButton customerId={c.id} services={services.map((x) => ({ id: x.id, name: x.name }))} />}
+        </div>
+        {followUps.rows.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-muted-foreground">
+            Nenhum retorno programado. Eles aparecem sozinhos quando um atendimento de serviço com retorno é concluído.
+          </p>
+        ) : (
+          <ul className="divide-y">
+            {followUps.rows.map((f) => {
+              const days = diffDaysISO(today, f.dueOn);
+              return (
+                <li key={f.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm">
+                  <span>
+                    <span className="font-medium">{f.service.name}</span>
+                    {" · "}
+                    {f.status === "AGENDADO" && f.appointment ? (
+                      <>agendado para {formatLocalDateTime(f.appointment.startsAt)}</>
+                    ) : (
+                      <>
+                        previsto para <span className="tabular-nums">{f.dueOn.split("-").reverse().join("/")}</span>
+                        <span className={cn("text-muted-foreground", days < 0 && "font-medium text-destructive")}>
+                          {" "}
+                          ({days === 0 ? "hoje" : days > 0 ? `em ${days} dias` : `atrasado há ${-days} dias`})
+                        </span>
+                      </>
+                    )}
+                    {f.source && <span className="block text-xs text-muted-foreground">Após {f.source.service} em {formatLocalDate(f.source.date)}</span>}
+                  </span>
+                  {f.status === "PENDENTE" ? (
+                    <Link href={`/retornos?q=${encodeURIComponent(c.name)}&aba=${days < 0 ? "atrasados" : days <= 6 ? "semana" : days <= 30 ? "proximos" : "depois"}`} className="text-xs font-medium text-primary hover:underline">
+                      Contatar em Retornos
+                    </Link>
+                  ) : (
+                    <Badge variant="outline">Agendado</Badge>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <section aria-labelledby="historico" className="mb-8">
         <h2 id="historico" className="mb-3 text-lg font-semibold tracking-tight">

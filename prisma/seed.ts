@@ -12,6 +12,7 @@ import { createProduct } from "../src/server/services/products";
 import { createSale, cancelSale } from "../src/server/services/sales";
 import { createExpense } from "../src/server/services/finance";
 import { scheduleAppointment, completeAppointment, cancelAppointment, startAppointment } from "../src/server/services/appointments";
+import { createFollowUp } from "../src/server/services/followups";
 import { addDays, atLocal, localParts } from "../src/lib/time";
 import { currentMonth, shiftMonth, BUSINESS_TZ_OFFSET, type PaymentMethod } from "../src/lib/finance-shared";
 
@@ -178,6 +179,17 @@ async function main() {
     else await prisma.service.create({ data: { name, description, price, estimatedCost, durationMin } });
   }
 
+  // Retornos: instalação pede manutenção em 6 meses; limpeza a cada 3; manutenção a cada 6.
+  const byName = new Map((await prisma.service.findMany()).map((x) => [x.name, x.id]));
+  const manutencao = byName.get("Manutenção preventiva")!;
+  for (const [name, months, target] of [
+    ["Instalação de ar-condicionado", 6, manutencao],
+    ["Limpeza de ar-condicionado", 3, null],
+    ["Manutenção preventiva", 6, null],
+  ] as const) {
+    await prisma.service.update({ where: { id: byName.get(name)! }, data: { returnAfterMonths: months, returnServiceId: target } });
+  }
+
   // Agenda de exemplo: últimos 10 dias, hoje e próximos 6 dias (só se ainda não houver atendimentos)
   if ((await prisma.appointment.count()) === 0) {
     const svc = new Map((await prisma.service.findMany()).map((x) => [x.name, x.id]));
@@ -225,8 +237,25 @@ async function main() {
       ["Lúcia Ferraz", "11987650001", 70],
       ["Marcos Teixeira", "11987650002", 95],
     ] as const) {
-      const a = await scheduleAppointment({ serviceId: svc.get(names[1])!, providerId: paulo.id, customer: { name, phone }, startsAt: atLocal(addDays(today, -daysAgo), "10:00"), userId: admin.id });
+      const a = await scheduleAppointment({ serviceId: svc.get("Limpeza de ar-condicionado")!, providerId: paulo.id, customer: { name, phone }, startsAt: atLocal(addDays(today, -daysAgo), "10:00"), userId: admin.id });
       await completeAppointment({ id: a.id, paymentMethod: "PIX", actor: { id: paulo.id, seeAll: false }, now: a.endsAt });
+    }
+
+    // Retornos para a lista de contatos: um atrasado e dois nesta semana.
+    const cliente = async (name: string) => (await prisma.customer.findFirstOrThrow({ where: { name } })).id;
+    const carla = await cliente("Carla Mendes");
+    const visita = svc.get("Visita técnica")!; // sem regra de retorno: este é programado à mão
+    if (!(await prisma.followUp.findFirst({ where: { customerId: carla, serviceId: visita, status: { in: ["PENDENTE", "AGENDADO"] } } }))) {
+      await prisma.followUp.create({ data: { customerId: carla, serviceId: visita, dueOn: new Date(`${addDays(today, -8)}T00:00:00Z`), createdById: admin.id } });
+    }
+    for (const [name, service, inDays] of [
+      ["Isabela Reis", manutencao, 2],
+      ["João Pedro Martins", svc.get("Limpeza de ar-condicionado")!, 5],
+    ] as const) {
+      const id = await cliente(name);
+      if (!(await prisma.followUp.findFirst({ where: { customerId: id, serviceId: service, status: { in: ["PENDENTE", "AGENDADO"] } } }))) {
+        await createFollowUp({ customerId: id, serviceId: service, dueOn: addDays(today, inDays), actorId: admin.id });
+      }
     }
 
     // Observações e e-mail de exemplo, e parte das vendas ligada a clientes.

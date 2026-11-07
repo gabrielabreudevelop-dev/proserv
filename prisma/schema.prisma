@@ -45,6 +45,15 @@ enum AppointmentStatus {
   CANCELADO
 }
 
+/// Retorno previsto: PENDENTE (falta contatar) → AGENDADO (tem horário) → REALIZADO,
+/// ou ENCERRADO (cliente não quer, cadastro juntado...).
+enum FollowUpStatus {
+  PENDENTE
+  AGENDADO
+  REALIZADO
+  ENCERRADO
+}
+
 enum LedgerKind {
   RECEITA_PRODUTO
   RECEITA_SERVICO
@@ -78,11 +87,12 @@ model User {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
-  sessions     Session[]
-  accounts     Account[]
-  sales        Sale[]
-  appointments Appointment[]     @relation("Provider")
-  tablePrefs   TablePreference[]
+  sessions         Session[]
+  accounts         Account[]
+  sales            Sale[]
+  appointments     Appointment[]     @relation("Provider")
+  followUpContacts FollowUpContact[] @relation("FollowUpContacts")
+  tablePrefs       TablePreference[]
 
   @@map("user")
 }
@@ -266,46 +276,100 @@ model Customer {
   anonymizedAt DateTime?
   appointments Appointment[]
   sales        Sale[]
+  followUps    FollowUp[]
 
   @@index([name])
   @@index([phone])
 }
 
 model Service {
-  id            String        @id @default(cuid())
-  name          String
-  description   String?
-  price         Decimal       @db.Decimal(14, 2)
-  estimatedCost Decimal       @default(0) @db.Decimal(14, 2) // insumos/comissão
-  durationMin   Int
-  active        Boolean       @default(true)
-  appointments  Appointment[]
+  id                String        @id @default(cuid())
+  name              String
+  description       String?
+  price             Decimal       @db.Decimal(14, 2)
+  estimatedCost     Decimal       @default(0) @db.Decimal(14, 2) // insumos/comissão
+  durationMin       Int
+  active            Boolean       @default(true)
+  /// Retorno recomendado depois de concluir (ex.: manutenção a cada 6 meses). Nulo = sem retorno.
+  returnAfterMonths Int?
+  /// Serviço sugerido no retorno. Nulo = o próprio serviço.
+  returnServiceId   String?
+  returnService     Service?      @relation("ServiceReturn", fields: [returnServiceId], references: [id], onDelete: SetNull)
+  returnedBy        Service[]     @relation("ServiceReturn")
+  appointments      Appointment[]
+  followUps         FollowUp[]
 }
 
 model Appointment {
-  id           String            @id @default(cuid())
-  serviceId    String
-  service      Service           @relation(fields: [serviceId], references: [id])
-  providerId   String
-  provider     User              @relation("Provider", fields: [providerId], references: [id])
-  customerId   String
-  customer     Customer          @relation(fields: [customerId], references: [id])
-  startsAt     DateTime
-  endsAt       DateTime
-  status       AppointmentStatus @default(AGENDADO)
-  chargedPrice Decimal?          @db.Decimal(14, 2)
-  paymentMethod String?
-  notes        String?
-  createdById  String?
-  createdAt    DateTime          @default(now())
-  completedAt  DateTime?
-  cancelledAt  DateTime?
-  cancelReason String?
+  id                 String            @id @default(cuid())
+  serviceId          String
+  service            Service           @relation(fields: [serviceId], references: [id])
+  generatedFollowUps FollowUp[]        @relation("FollowUpSource")
+  fulfills           FollowUp?         @relation("FollowUpAppointment")
+  providerId         String
+  provider           User              @relation("Provider", fields: [providerId], references: [id])
+  customerId         String
+  customer           Customer          @relation(fields: [customerId], references: [id])
+  startsAt           DateTime
+  endsAt             DateTime
+  status             AppointmentStatus @default(AGENDADO)
+  chargedPrice       Decimal?          @db.Decimal(14, 2)
+  paymentMethod      String?
+  notes              String?
+  createdById        String?
+  createdAt          DateTime          @default(now())
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  cancelReason       String?
 
   @@index([startsAt])
   @@index([providerId, startsAt])
   @@index([status, startsAt])
   @@index([customerId, startsAt])
+}
+
+/// Retorno previsto de um cliente: quando entrar em contato e qual serviço oferecer.
+model FollowUp {
+  id                  String            @id @default(cuid())
+  customerId          String
+  customer            Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  serviceId           String
+  service             Service           @relation(fields: [serviceId], references: [id])
+  /// Dia previsto para o contato (calendário de Brasília).
+  dueOn               DateTime          @db.Date
+  status              FollowUpStatus    @default(PENDENTE)
+  /// Atendimento concluído que gerou este retorno (nulo = programado à mão).
+  sourceAppointmentId String?
+  sourceAppointment   Appointment?      @relation("FollowUpSource", fields: [sourceAppointmentId], references: [id], onDelete: SetNull)
+  /// Atendimento marcado para cumprir o retorno.
+  appointmentId       String?           @unique
+  appointment         Appointment?      @relation("FollowUpAppointment", fields: [appointmentId], references: [id], onDelete: SetNull)
+  closedReason        String?
+  closedAt            DateTime?
+  createdById         String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @default(now()) @updatedAt
+  contacts            FollowUpContact[]
+
+  @@index([status, dueOn])
+  @@index([customerId, status])
+}
+
+/// Cada tentativa de contato de um retorno.
+model FollowUpContact {
+  id         String   @id @default(cuid())
+  followUpId String
+  followUp   FollowUp @relation(fields: [followUpId], references: [id], onDelete: Cascade)
+  /// WHATSAPP | LIGACAO | OUTRO
+  channel    String
+  /// SEM_RESPOSTA | FALAR_DEPOIS | VAI_AGENDAR | NAO_QUER
+  outcome    String
+  note       String?
+  userId     String
+  user       User     @relation("FollowUpContacts", fields: [userId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@index([followUpId, createdAt])
 }
 
 // ─────────────────────────────────────────────────────────────

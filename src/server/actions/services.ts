@@ -14,7 +14,7 @@ import { formatDuration } from "@/lib/time";
 import { diff } from "@/server/services/audit";
 
 function revalidate() {
-  for (const p of ["/servicos", "/agenda", "/dashboard", "/financeiro"]) revalidatePath(p);
+  for (const p of ["/servicos", "/agenda", "/dashboard", "/financeiro", "/retornos"]) revalidatePath(p);
   revalidatePath("/clientes", "layout");
 }
 
@@ -25,7 +25,12 @@ const serviceSchema = z.object({
   price: decimalField("preço"),
   estimatedCost: z.preprocess((v) => (v === "" || v == null ? "0" : v), decimalField("custo")),
   durationMin: z.coerce.number({ error: "Informe a duração" }).int("Use minutos inteiros"),
+  returnAfterMonths: z.preprocess((v) => (v === "" || v == null ? null : v), z.coerce.number().int("Use meses inteiros").nullable()),
+  returnServiceId: z.string().optional(),
 });
+
+/** "Retorno em 6 meses: Manutenção preventiva" — para a auditoria. */
+const returnLabel = (months: number | null, target: string | null) => (months ? `${months} ${months > 1 ? "meses" : "mês"}${target ? `: ${target}` : ""}` : "Sem retorno");
 
 export async function createServiceAction(input: unknown) {
   return guardedAction({ resource: "servico", action: "gerenciar" }, serviceSchema, input, async (data, session) => {
@@ -38,14 +43,16 @@ export async function createServiceAction(input: unknown) {
 
 export async function updateServiceAction(id: string, input: unknown) {
   return guardedAction({ resource: "servico", action: "gerenciar" }, serviceSchema, input, async (data, session) => {
-    const before = await prisma.service.findUnique({ where: { id } });
+    const before = await prisma.service.findUnique({ where: { id }, include: { returnService: { select: { name: true } } } });
     const res = await updateService(id, data);
-    const changes = before
-      ? diff(
-          { Nome: before.name, Descrição: before.description, Valor: formatBRL(before.price.toString()), "Custo estimado": formatBRL(before.estimatedCost.toString()), Duração: formatDuration(before.durationMin) },
-          { Nome: data.name, Descrição: data.description || null, Valor: formatBRL(data.price), "Custo estimado": formatBRL(data.estimatedCost), Duração: formatDuration(data.durationMin) },
-        )
-      : {};
+    const after = await prisma.service.findUnique({ where: { id }, include: { returnService: { select: { name: true } } } });
+    const changes =
+      before && after
+        ? diff(
+            { Nome: before.name, Descrição: before.description, Valor: formatBRL(before.price.toString()), "Custo estimado": formatBRL(before.estimatedCost.toString()), Duração: formatDuration(before.durationMin), Retorno: returnLabel(before.returnAfterMonths, before.returnService?.name ?? null) },
+            { Nome: after.name, Descrição: after.description, Valor: formatBRL(after.price.toString()), "Custo estimado": formatBRL(after.estimatedCost.toString()), Duração: formatDuration(after.durationMin), Retorno: returnLabel(after.returnAfterMonths, after.returnService?.name ?? null) },
+          )
+        : {};
     if (Object.keys(changes).length) await auditAfter(session, { action: "servico.editar", entity: "Service", entityId: id, summary: `Editou o serviço "${data.name}": ${Object.keys(changes).join(", ")}`, changes });
     revalidate();
     return res;
@@ -75,12 +82,13 @@ const scheduleSchema = when.extend({
   customerName: z.string().trim().max(80).optional(),
   customerPhone: z.string().trim().max(20).optional(),
   notes: z.string().trim().max(300).optional(),
+  followUpId: z.string().optional(),
 });
 
 export async function scheduleAction(input: unknown) {
   return guardedAction({ resource: "agenda", action: "agendar" }, scheduleSchema, input, async (d, session) => {
     const customer = d.customerId ? { id: d.customerId } : { name: d.customerName ?? "", phone: d.customerPhone };
-    const a = await scheduleAppointment({ serviceId: d.serviceId, providerId: d.providerId, customer, startsAt: atLocal(d.date, d.time), notes: d.notes, userId: session.user.id });
+    const a = await scheduleAppointment({ serviceId: d.serviceId, providerId: d.providerId, customer, startsAt: atLocal(d.date, d.time), notes: d.notes, userId: session.user.id, followUpId: d.followUpId || undefined });
     const info = await prisma.appointment.findUnique({ where: { id: a.id }, select: { service: { select: { name: true } }, customer: { select: { name: true } }, provider: { select: { name: true } } } });
     await auditAfter(session, { action: "atendimento.agendar", entity: "Appointment", entityId: a.id, summary: `Agendou ${info?.service.name} — ${info?.customer.name} com ${info?.provider.name} em ${d.date.split("-").reverse().join("/")} às ${d.time}` });
     revalidate();
@@ -125,6 +133,8 @@ export async function completeAppointmentAction(input: unknown) {
       id: z.string().min(1),
       chargedPrice: optionalDecimal("valor"),
       paymentMethod: z.enum(Object.keys(PAYMENT_METHODS) as [PaymentMethod, ...PaymentMethod[]], { error: "Escolha a forma de pagamento" }),
+      /** Omitido = regra do serviço; null = sem retorno; data = retorno escolhido. */
+      followUpOn: z.union([z.iso.date({ error: "Data inválida" }), z.null()]).optional(),
     }),
     input,
     async (d, session) => {

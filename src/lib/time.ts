@@ -102,3 +102,18 @@ export function agoLabel(fromIso: string, now: Date) {
   const y = Math.floor(d / 365);
   return `há ${y} ano${y > 1 ? "s" : ""}`;
 }
+
+/** "2026-01-31" + 1 mês → "2026-02-28" (fica no último dia quando o mês é mais curto). */
+export function addMonthsISO(date: string, months: number) {
+  const [y, m, d] = date.split("-").map(Number);
+  const total = y * 12 + (m - 1) + months;
+  const ny = Math.floor(total / 12);
+  const nm = (total % 12) + 1;
+  const last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
+  return `${ny}-${String(nm).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
+}
+
+/** Dias entre duas datas de calendário ("YYYY-MM-DD"): b − a. */
+export function diffDaysISO(a: string, b: string) {
+  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+}

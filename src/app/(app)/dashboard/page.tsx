@@ -1,16 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangle, ArrowRight, CalendarClock, Plus } from "lucide-react";
+import { AlertTriangle, ArrowRight, BellRing, CalendarClock, Plus } from "lucide-react";
 import { requireSession } from "@/lib/auth/guards";
 import { can } from "@/lib/auth/permissions";
 import { formatBRL, formatPct, formatQty } from "@/lib/format";
-import { localParts, longDate } from "@/lib/time";
+import { diffDaysISO, localParts, longDate } from "@/lib/time";
+import { formatPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { DailyBarChart } from "@/components/bar-chart";
 import { Kpi } from "@/components/month-picker";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { productsDashboard, servicesDashboard } from "@/server/services/dashboard";
+import { followUpForecast, listFollowUps } from "@/server/services/followups";
 import { SetDefaultFocus } from "./set-default-focus";
 
 type Props = { searchParams: Promise<{ foco?: string }> };
@@ -127,6 +129,11 @@ export default async function DashboardPage({ searchParams }: Props) {
   const money = can(user.role, "financeiro", "ver");
   const d = await servicesDashboard({ providerId: all ? undefined : user.id, includeMoney: money });
   const nowMin = localParts(new Date()).minutes;
+  const seeReturns = can(user.role, "cliente", "ver");
+  const [forecast, dueSoon] = seeReturns
+    ? await Promise.all([followUpForecast(), Promise.all([listFollowUps({ tab: "atrasados" }), listFollowUps({ tab: "semana" })])])
+    : [null, null];
+  const toContact = dueSoon ? [...dueSoon[0].rows, ...dueSoon[1].rows].slice(0, 6) : [];
   return (
     <>
       {header(all ? `${longDate(d.today)} · serviços e agenda da equipe` : `${longDate(d.today)} · seus serviços e agenda`)}
@@ -227,6 +234,60 @@ export default async function DashboardPage({ searchParams }: Props) {
           )}
         </section>
       </div>
+
+      {forecast && (
+        <section className="mt-6 rounded-xl border" aria-labelledby="returns-s">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3.5">
+            <h2 id="returns-s" className="flex items-center gap-2 text-sm font-medium">
+              <BellRing className="size-4" aria-hidden /> Retornos para contatar
+            </h2>
+            <Link href="/retornos" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+              Abrir retornos <ArrowRight className="size-3.5" />
+            </Link>
+          </div>
+          <div className="grid gap-6 p-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
+            <dl className="grid grid-cols-3 gap-4 lg:grid-cols-1">
+              <div>
+                <dt className="text-xs text-muted-foreground">Agora (atrasados + semana)</dt>
+                <dd className={cn("text-2xl font-semibold tabular-nums", forecast.overdue > 0 && "text-destructive")}>{forecast.overdue + forecast.week}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Previstos em 30 dias</dt>
+                <dd className="text-2xl font-semibold tabular-nums">{forecast.total}</dd>
+              </div>
+              {money && (
+                <div>
+                  <dt className="text-xs text-muted-foreground">Valor em potencial</dt>
+                  <dd className="text-2xl font-semibold tabular-nums">{formatBRL(forecast.value)}</dd>
+                </div>
+              )}
+            </dl>
+            {toContact.length === 0 ? (
+              <p className="self-center text-sm text-muted-foreground">Ninguém para procurar nesta semana.</p>
+            ) : (
+              <ul className="divide-y self-start rounded-lg border">
+                {toContact.map((f) => {
+                  const days = diffDaysISO(d.today, f.dueOn);
+                  return (
+                    <li key={f.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                      <span className={cn("w-20 shrink-0 text-xs tabular-nums", days < 0 ? "font-medium text-destructive" : "text-muted-foreground")}>
+                        {days === 0 ? "hoje" : days < 0 ? `há ${-days} dias` : `em ${days} dias`}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">
+                        <Link href={`/clientes/${f.customer.id}`} className="font-medium hover:underline">
+                          {f.customer.name}
+                        </Link>{" "}
+                        · {f.service.name}
+                      </span>
+                      {f.customer.phone && <span className="hidden shrink-0 text-xs text-muted-foreground tabular-nums sm:inline">{formatPhone(f.customer.phone)}</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </section>
+      )}
 
       {d.money && (
         <section className="mt-6 rounded-xl border p-5" aria-labelledby="chart-s">
