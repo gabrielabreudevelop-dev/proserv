@@ -8,7 +8,7 @@ Sistema de gestão de produtos, serviços, vendas e finanças (Lucro/Prejuízo),
 
 ## Rodando localmente
 
-Pré-requisitos: Node 22+ e PostgreSQL 16+.
+Pré-requisitos: Node 24 (LTS; funciona a partir do 22) e PostgreSQL 16+.
 
 ```bash
 cp .env.example .env          # ajuste DATABASE_URL e BETTER_AUTH_SECRET

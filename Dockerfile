@@ -3,16 +3,15 @@
 # Migrar:  docker run --rm -e DATABASE_URL=... proserv npx prisma migrate deploy
 # Rodar:   docker run -p 3000:3000 --env-file .env.production proserv
 
-FROM node:22-alpine AS deps
+FROM node:24-alpine AS deps
 WORKDIR /app
-RUN npm install -g npm@11
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 COPY prisma.config.ts ./
 # Instala sem scripts (o client é gerado no estágio de build)
 RUN npm ci --ignore-scripts
 
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
@@ -20,7 +19,7 @@ COPY . .
 # DATABASE_URL só é lida pelo prisma.config; qualquer valor serve para gerar o client.
 RUN DATABASE_URL=postgresql://build:build@localhost:5432/build npx prisma generate && npm run build
 
-FROM node:22-alpine AS runner
+FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 RUN addgroup -S app && adduser -S app -G app
