@@ -30,7 +30,7 @@ jobs:
       BETTER_AUTH_SECRET: ci-secret-not-used-in-production-000000
       BETTER_AUTH_URL: http://localhost:3000
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -68,7 +68,7 @@ jobs:
       BETTER_AUTH_SECRET: ci-e2e-secret-not-used-in-production-000
       TZ: America/Sao_Paulo
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
