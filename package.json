@@ -26,7 +26,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.0",
-    "geist": "^1.8.2",
+    "geist": "^1.9.1",
     "lucide-react": "^1.65.0",
     "next": "^16.4.3",
     "radix-ui": "^1.8.1",
