@@ -6,11 +6,11 @@ marcados**. O passo a passo da publicação está em [deploy.md](./deploy.md).
 ## Bloqueiam a publicação
 
 ### Repositório e CI
-- [ ] Vincular o GitHub ao Claude (claude.ai → Settings → Connectors) e instalar o
+- [x] Vincular o GitHub ao Claude (claude.ai → Settings → Connectors) e instalar o
       Claude GitHub App no repositório `gabrielabreudevelop-dev/proserv` — *desde a Fase 0*
-- [ ] Enviar os commits para o GitHub (push da branch `main`)
-- [ ] Primeira execução do CI **no GitHub** verde (lint, tipos, 100 testes, build e 75 testes
-      de navegador). Localmente tudo passa; no GitHub ainda não rodou nenhuma vez.
+- [x] Enviar os commits para o GitHub (push da branch `main`) — 08/11/2026
+- [x] Primeira execução do CI **no GitHub** verde (lint, tipos, 100 testes, build e 75 testes
+      de navegador). Verde em 08/11/2026 (run 42534481306).
 
 ### Decisões de negócio a confirmar (de preferência com o contador)
 - [ ] Regime de competência: comprar mercadoria não reduz o lucro; o custo entra quando o
